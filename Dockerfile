@@ -1,24 +1,27 @@
+# Build stage
+FROM golang:alpine AS builder
+
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY cmd/ ./cmd/
+
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o dbmate-s3-docker ./cmd/dbmate-s3-docker
+
+# Runtime stage
 FROM alpine:3.21
 
-# Install dependencies
-RUN apk add --no-cache \
-    bash \
-    curl \
-    ca-certificates \
-    aws-cli \
-    postgresql-client
+# Install required packages
+RUN apk add --no-cache ca-certificates
 
-# Install dbmate
-ARG DBMATE_VERSION=2.29.3
-RUN curl -fsSL -o /usr/local/bin/dbmate \
-    https://github.com/amacneil/dbmate/releases/download/v${DBMATE_VERSION}/dbmate-linux-amd64 \
-    && chmod +x /usr/local/bin/dbmate
+# Copy binary from builder
+COPY --from=builder /build/dbmate-s3-docker /usr/local/bin/dbmate-s3-docker
 
-# Create working directory
-WORKDIR /migrations
+WORKDIR /tmp
 
-# Copy entrypoint script
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/dbmate-s3-docker"]

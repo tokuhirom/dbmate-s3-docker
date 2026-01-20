@@ -1,105 +1,95 @@
 # dbmate-s3-docker
 
-Dockerized database migration tool using [dbmate](https://github.com/amacneil/dbmate) with S3-compatible storage support.
+[![GitHub release](https://img.shields.io/github/v/release/tokuhirom/dbmate-s3-docker)](https://github.com/tokuhirom/dbmate-s3-docker/releases)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/tokuhirom/dbmate-s3-docker/pkgs/container/dbmate-s3-docker)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Database migration tool using [dbmate](https://github.com/amacneil/dbmate) with version-based migration management via S3-compatible storage.
 
 ## Features
 
-- 🐳 **Containerized**: No installation required, runs anywhere Docker is available
-- 📦 **S3 Integration**: Sync migration files from S3-compatible storage (AWS S3, MinIO, LocalStack, etc.)
-- 🔄 **Automatic Sync**: Automatically downloads latest migrations before applying
-- 🧪 **Testable**: Includes complete local testing environment with docker-compose
-- 🚀 **Production Ready**: Can be used with any container orchestrator
-- 📝 **Simple**: Single entrypoint script, minimal configuration
+- 🐳 **Containerized**: Runs migrations in Docker container
+- 📦 **Version Management**: Date-based version control with completion tracking
+- 🔄 **Incremental**: Only applies unapplied versions
+- 📝 **Result Logging**: Uploads detailed result logs to S3
+- 🚀 **Simple**: Minimal configuration, focused on reliability
 
 ## Quick Start
 
-### Local Testing
-
-1. Clone the repository:
-```bash
-git clone https://github.com/tokuhirom/dbmate-s3-docker.git
-cd dbmate-s3-docker
-```
-
-2. Run the test:
-```bash
-make test
-```
-
-This will:
-- Start PostgreSQL and LocalStack (S3-compatible storage)
-- Upload test migrations to S3
-- Run dbmate to sync and apply migrations
-- Verify the results
-
-### Production Usage
-
-#### 1. Build the Docker image
+Pull the latest Docker image from GitHub Container Registry:
 
 ```bash
-docker build -t dbmate-s3:latest .
+docker pull ghcr.io/tokuhirom/dbmate-s3-docker:latest
 ```
 
-#### 2. Run migrations
+Run migration:
 
 ```bash
 docker run --rm \
   -e DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=require" \
-  -e S3_BUCKET="my-migrations-bucket" \
-  -e S3_ENDPOINT_URL="https://s3.amazonaws.com" \
+  -e S3_BUCKET="your-bucket" \
+  -e S3_PATH_PREFIX="migrations/" \
+  -e S3_ENDPOINT_URL="https://s3.isk01.sakurastorage.jp" \
   -e AWS_ACCESS_KEY_ID="your-access-key" \
   -e AWS_SECRET_ACCESS_KEY="your-secret-key" \
-  dbmate-s3:latest
+  ghcr.io/tokuhirom/dbmate-s3-docker:latest
 ```
 
-#### 3. Or use with docker-compose
+## How It Works
 
-Create a `docker-compose.yml`:
+### Version Management
 
-```yaml
-services:
-  dbmate:
-    image: dbmate-s3:latest
-    environment:
-      DATABASE_URL: postgres://user:pass@db:5432/mydb?sslmode=require
-      S3_BUCKET: my-migrations-bucket
-      S3_ENDPOINT_URL: https://s3.amazonaws.com
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      MIGRATIONS_PATH: migrations/
+Migrations are organized by versions in S3:
+
+```
+s3://your-bucket/${S3_PATH_PREFIX}/
+  20260121010000/           # Version: YYYYMMDDHHMMSS
+    migrations/             # Migration SQL files (directory name is fixed)
+      20260101000000_create_users.sql
+      20260102000000_add_email.sql
+    result.json            # Execution result (created after run)
+  20260121020000/           # Newer version
+    migrations/             # Directory name "migrations/" is fixed and cannot be changed
+      20260103000000_add_posts.sql
+    # No result.json = unapplied version
 ```
 
-Run with:
-```bash
-docker compose run --rm dbmate
+**S3 Path Structure**: `s3://${S3_BUCKET}/${S3_PATH_PREFIX}${VERSION}/migrations/`
+
+**Note**: The `migrations/` directory name within each version is fixed and cannot be customized.
+
+### Execution Flow
+
+1. List all version directories from S3 (sorted numerically)
+2. Find the first version without `result.json`
+3. Download migrations from that version
+4. Run `dbmate up` to apply migrations
+5. Upload `result.json` with execution details (both success and failure)
+
+**Key behavior**: The tool applies **one version at a time**, starting from the oldest unapplied version. A version is considered applied if `result.json` exists, regardless of success or failure status.
+
+## Project Structure
+
+```
+your-project/
+├── Dockerfile                # Dockerfile for migration job
+└── .github/
+    └── workflows/
+        └── migrate.yml       # GitHub Actions workflow
 ```
 
-## Environment Variables
+**Note**: Migration files are NOT bundled in the Docker image. They are stored in S3 and downloaded at runtime.
 
-### Required
+## Migration Files
 
-- `DATABASE_URL`: PostgreSQL connection string (format: `postgres://user:pass@host:port/db`)
-- `S3_BUCKET`: S3 bucket name where migrations are stored
-- `AWS_ACCESS_KEY_ID`: AWS access key ID
-- `AWS_SECRET_ACCESS_KEY`: AWS secret access key
-
-### Optional
-
-- `S3_ENDPOINT_URL`: S3 endpoint URL (required for S3-compatible services like MinIO, Sakura Cloud)
-- `MIGRATIONS_PATH`: Path in S3 bucket (default: `migrations/`)
-- `MIGRATIONS_DIR`: Local directory for migrations (default: `/migrations`)
-- `DBMATE_NO_DUMP_SCHEMA`: Skip schema dump (default: `true`)
-- `AWS_DEFAULT_REGION`: AWS region (default: `us-east-1`)
-
-## Migration File Format
-
-Migration files should follow dbmate's naming convention:
+Migration files follow dbmate's naming convention:
 
 ```
 YYYYMMDDHHMMSS_description.sql
 ```
 
 Example:
+
 ```sql
 -- migrate:up
 CREATE TABLE users (
@@ -112,76 +102,346 @@ CREATE TABLE users (
 DROP TABLE users;
 ```
 
-## Makefile Commands
+## Setup
+
+### 1. Prepare S3 Structure
+
+Create a version directory in S3 with migrations:
 
 ```bash
-make help      # Show all available commands
-make build     # Build the Docker image
-make up        # Start test environment
-make test      # Run complete migration test
-make verify    # Verify migrations were applied
-make clean     # Clean up everything
-make logs      # Show logs
-make shell     # Open shell in dbmate container
-make psql      # Open PostgreSQL shell
-make s3-ls     # List files in S3 bucket
+# Example: Create version 20260121010000
+# Assuming S3_PATH_PREFIX="migrations/"
+aws s3 cp db/migrations/20260101000000_create_users.sql \
+  s3://your-bucket/migrations/20260121010000/migrations/
+
+aws s3 cp db/migrations/20260102000000_add_email.sql \
+  s3://your-bucket/migrations/20260121010000/migrations/
 ```
 
-## Testing Workflow
+**Important**:
+- Version naming: Use `YYYYMMDDHHMMSS` format (e.g., `20260121153000` for 2026-01-21 15:30:00)
+- The `migrations/` subdirectory within each version directory is required and cannot be changed
 
-The test environment includes:
+### 2. Configure GitHub Secrets
 
-1. **PostgreSQL 16**: Target database
-2. **LocalStack**: S3-compatible storage for testing
-3. **dbmate**: Migration runner
+Add the following secrets to your GitHub repository:
 
-Test workflow:
+**Database:**
+- `DATABASE_URL`: PostgreSQL connection string (format: `postgres://user:pass@host:port/db?sslmode=require`)
+
+**S3 Storage:**
+- `S3_BUCKET`: S3 bucket name
+- `S3_PATH_PREFIX`: S3 path prefix (e.g., `migrations/`)
+- `S3_ENDPOINT_URL`: S3 endpoint URL (optional, for S3-compatible services like Sakura Cloud)
+- `AWS_ACCESS_KEY_ID`: AWS/S3-compatible access key
+- `AWS_SECRET_ACCESS_KEY`: AWS/S3-compatible secret key
+
+### 3. Copy files to your project
+
+Copy this file to your project:
+- `Dockerfile`
+
+### 4. Build and run
+
 ```bash
-# 1. Start services
-make up
+# Build the image
+docker build -t dbmate-migration:latest .
 
-# 2. Verify S3 has migrations
-make s3-ls
+# Run migration
+docker run --rm \
+  -e DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=require" \
+  -e S3_BUCKET="your-bucket" \
+  -e S3_PATH_PREFIX="migrations/" \
+  -e S3_ENDPOINT_URL="https://s3.isk01.sakurastorage.jp" \
+  -e AWS_ACCESS_KEY_ID="your-access-key" \
+  -e AWS_SECRET_ACCESS_KEY="your-secret-key" \
+  dbmate-migration:latest
+```
 
-# 3. Run migrations
+## Environment Variables
+
+**Required:**
+- `DATABASE_URL`: PostgreSQL connection string
+- `S3_BUCKET`: S3 bucket name
+- `S3_PATH_PREFIX`: S3 path prefix (must end with `/`)
+
+**Optional:**
+- `S3_ENDPOINT_URL`: S3 endpoint URL (required for S3-compatible services)
+- `AWS_ACCESS_KEY_ID`: AWS access key
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_DEFAULT_REGION`: AWS region (default: `us-east-1`)
+- `METRICS_ADDR`: Prometheus metrics endpoint address (e.g., `:9090`). Metrics disabled if not set
+
+## Result JSON
+
+After execution, `result.json` is uploaded to S3:
+
+**Success example** (`s3://bucket/migrations/20260121010000/result.json`):
+
+```json
+{
+  "version": "20260121010000",
+  "status": "success",
+  "timestamp": "2026-01-21T01:00:00Z",
+  "migrations_applied": 2,
+  "log": "[2026-01-21 01:00:00 UTC] === Starting database migration ===\n..."
+}
+```
+
+**Failure example**:
+
+```json
+{
+  "version": "20260121010000",
+  "status": "failed",
+  "timestamp": "2026-01-21T01:00:00Z",
+  "error": "Failed to download migrations from S3",
+  "log": "[2026-01-21 01:00:00 UTC] ✗ Failed to download...\n..."
+}
+```
+
+## Version Management
+
+A version is considered applied if `result.json` exists in its directory. The tool checks for `result.json` existence using S3 HeadObject (lightweight operation) before applying a version.
+
+**To retry a failed migration**: Delete the `result.json` file from S3 and run the tool again.
+
+## Deployment
+
+### Running as a Daemon
+
+The tool is designed to run as a long-running daemon process that continuously polls S3 for new migration versions:
+
+```bash
+docker run -d \
+  --name dbmate-s3-docker \
+  --restart unless-stopped \
+  -e DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=require" \
+  -e S3_BUCKET="your-bucket" \
+  -e S3_PATH_PREFIX="migrations/" \
+  -e S3_ENDPOINT_URL="https://s3.isk01.sakurastorage.jp" \
+  -e AWS_ACCESS_KEY_ID="your-access-key" \
+  -e AWS_SECRET_ACCESS_KEY="your-secret-key" \
+  dbmate-s3-docker:latest
+```
+
+The daemon will:
+1. Check S3 for unapplied versions every time it runs
+2. Apply the oldest unapplied version
+3. Upload `result.json` to S3
+4. Exit (restart by orchestrator to check again)
+
+**Note**: Configure your orchestrator (Docker, Kubernetes, systemd, etc.) to restart the container after it exits.
+
+### GitHub Actions Integration
+
+Use GitHub Actions to upload new migration versions to S3:
+
+```yaml
+name: Upload Migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'db/migrations/**'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload migrations to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+        run: |
+          # Generate version timestamp
+          VERSION=$(date -u +%Y%m%d%H%M%S)
+
+          # Upload migration files
+          aws s3 sync db/migrations/ \
+            s3://${{ secrets.S3_BUCKET }}/migrations/${VERSION}/migrations/ \
+            --endpoint-url=$S3_ENDPOINT_URL
+
+          echo "Uploaded migrations as version: ${VERSION}"
+
+      - name: Wait for completion and notify
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          VERSION=$(date -u +%Y%m%d%H%M%S)
+
+          # Wait for result.json (timeout after 10 minutes)
+          for i in {1..120}; do
+            if aws s3 ls s3://${{ secrets.S3_BUCKET }}/migrations/${VERSION}/result.json \
+                --endpoint-url=$S3_ENDPOINT_URL >/dev/null 2>&1; then
+              echo "Migration completed"
+              break
+            fi
+            echo "Waiting for migration... ($i/120)"
+            sleep 5
+          done
+
+          # Download and parse result
+          aws s3 cp \
+            s3://${{ secrets.S3_BUCKET }}/migrations/${VERSION}/result.json \
+            result.json \
+            --endpoint-url=$S3_ENDPOINT_URL
+
+          STATUS=$(jq -r '.status' result.json)
+          LOG=$(jq -r '.log' result.json)
+
+          # Notify Slack
+          if [ "$STATUS" = "success" ]; then
+            COLOR="good"
+            EMOJI="✅"
+          else
+            COLOR="danger"
+            EMOJI="❌"
+          fi
+
+          curl -X POST "$SLACK_WEBHOOK_URL" -H 'Content-Type: application/json' -d @- <<EOF
+          {
+            "attachments": [{
+              "color": "$COLOR",
+              "title": "$EMOJI Migration $STATUS",
+              "fields": [
+                {"title": "Version", "value": "$VERSION", "short": true},
+                {"title": "Status", "value": "$STATUS", "short": true}
+              ],
+              "text": "```\n${LOG:0:1000}\n```"
+            }]
+          }
+          EOF
+```
+
+## Local Testing
+
+This repository includes a test environment with docker-compose for development:
+
+```bash
+# Run test
 make test
 
-# 4. Check database
+# Verify database
 make verify
 
-# 5. Cleanup
+# Cleanup
 make clean
 ```
 
-## CI/CD Integration
+The test environment uses LocalStack for S3 and PostgreSQL for the database.
 
-See [.github/workflows/test.yml](.github/workflows/test.yml) for GitHub Actions example.
+## Prometheus Metrics
+
+When `METRICS_ADDR` environment variable is set, the tool exposes Prometheus metrics:
+
+**Endpoint**: `http://<METRICS_ADDR>/metrics`
+
+**Available metrics**:
+
+- `dbmate_migration_attempts_total{status}` - Total number of migration attempts (labels: `success`, `failed`)
+- `dbmate_migration_duration_seconds` - Duration of migration execution in seconds (histogram)
+- `dbmate_last_migration_timestamp` - Timestamp of the last migration (unix seconds)
+- `dbmate_current_version{version}` - Current migration version (gauge with version label)
+
+**Example usage**:
+
+```bash
+docker run --rm \
+  -e DATABASE_URL="..." \
+  -e S3_BUCKET="..." \
+  -e S3_PATH_PREFIX="migrations/" \
+  -e METRICS_ADDR=":9090" \
+  -p 9090:9090 \
+  dbmate-s3-docker:latest
+```
+
+Then access metrics at `http://localhost:9090/metrics`.
+
+## Workflow Best Practices
+
+1. **Version Naming**: Use `date +%Y%m%d%H%M%S` to generate version names
+2. **Incremental Versions**: Create a new version for each migration batch
+3. **Testing**: Test migrations locally before uploading to S3
+4. **Rollback**: Use dbmate's `-- migrate:down` for rollback support
+5. **Monitoring**: Use Prometheus metrics and parse `result.json` for alerting
 
 ## Architecture
 
 ```
 ┌─────────────────┐
-│   S3 Bucket     │
-│  (migrations/)  │
-└────────┬────────┘
-         │ sync
-         ▼
-┌─────────────────┐
-│  dbmate         │
+│  Docker         │
 │  Container      │
 └────────┬────────┘
-         │ apply
-         ▼
-┌─────────────────┐
-│  PostgreSQL     │
-│  Database       │
-└─────────────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌────────────────────┐
+│  DB    │ │   S3 (Versions)   │
+│ Migrate│ │ - Download files   │
+│        │ │ - Upload results   │
+└────────┘ └────────────────────┘
+```
+
+## Differences from db-schema-sync
+
+This tool is inspired by [db-schema-sync](https://github.com/tokuhirom/db-schema-sync) but differs in:
+
+- **Tool**: Uses dbmate instead of psqldef
+- **File Format**: Uses dbmate's migration format (with `-- migrate:up/down`)
+- **Versioning**: Simple date-based versions (YYYYMMDDHHMMSS)
+- **Result Format**: JSON result with detailed logs
+
+## Development & Release
+
+### Docker Image Publishing
+
+Docker images are automatically built and published to GitHub Container Registry (ghcr.io) via GitHub Actions:
+
+**Continuous Integration** (`.github/workflows/docker.yml`):
+- **Pull Requests**: Test build only (no push)
+- **Main branch**: Build and push development images with branch name and commit SHA tags
+
+**Release** (`.github/workflows/tagpr.yml`):
+- **Version tags**: Build and push release images with semantic version tags (e.g., `v1.0.0`, `1.0`, `1`, `latest`)
+- Triggered automatically when tagpr creates a release tag
+
+### Making Container Images Public
+
+After the first release, make the container image public:
+
+1. Go to **Packages** in your GitHub repository
+2. Click on the `dbmate-s3-docker` package
+3. Go to **Package settings**
+4. Scroll down to **Danger Zone**
+5. Click **Change visibility** → **Public**
+
+### Local Development
+
+```bash
+# Build locally
+docker build -t dbmate-s3-docker:dev .
+
+# Run tests
+make test
+
+# Verify
+make verify
 ```
 
 ## License
 
 MIT
 
-## Contributing
+## Related Projects
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+- [dbmate](https://github.com/amacneil/dbmate) - Database migration tool
+- [db-schema-sync](https://github.com/tokuhirom/db-schema-sync) - Schema synchronization tool
