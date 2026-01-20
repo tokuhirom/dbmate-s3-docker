@@ -25,8 +25,7 @@ jobs:
 
     - name: Verify S3 setup
       run: |
-        docker compose run --rm --entrypoint="" dbmate \
-          aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migrations/
+        docker compose logs s3-setup
 
     - name: Run migrations
       run: docker compose run --rm dbmate

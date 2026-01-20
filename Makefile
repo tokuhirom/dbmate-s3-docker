@@ -1,4 +1,4 @@
-.PHONY: help build up down test clean logs verify s3-logs
+.PHONY: help build up down test clean logs verify s3-check
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,8 +6,8 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-build: ## Build the dbmate-migration Docker image
-	docker compose build dbmate-migration
+build: ## Build the dbmate Docker image
+	docker compose build dbmate
 
 up: ## Start PostgreSQL and LocalStack services
 	docker compose up -d postgres localstack s3-setup
@@ -20,13 +20,10 @@ down: ## Stop and remove all containers
 
 test: up ## Run migration test
 	@echo "Running dbmate migration..."
-	docker compose run --rm dbmate-migration
+	docker compose run --rm dbmate
 	@echo ""
 	@echo "Verifying migrations..."
 	@$(MAKE) verify
-	@echo ""
-	@echo "Checking migration logs in S3..."
-	@$(MAKE) s3-logs
 
 verify: ## Verify that migrations were applied
 	@echo "Checking database schema..."
@@ -49,24 +46,13 @@ clean: down ## Clean up everything including volumes
 	@echo "✓ Cleanup completed"
 
 # Development helpers
-shell: ## Open a shell in the dbmate-migration container
-	docker compose run --rm dbmate-migration /bin/bash
+shell: ## Open a shell in the dbmate container (Alpine - use /bin/sh)
+	docker compose run --rm --entrypoint=/bin/sh dbmate
 
 psql: ## Open PostgreSQL shell
 	docker compose exec postgres psql -U testuser -d testdb
 
-s3-logs: ## List migration log files in S3
-	@docker compose run --rm --entrypoint="" dbmate-migration \
-		aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migration-logs/ || echo "No logs found yet"
-
-s3-logs-cat: ## Show the latest migration log from S3
-	@LATEST=$$(docker compose run --rm --entrypoint="" dbmate-migration \
-		aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migration-logs/ | \
-		awk '{print $$4}' | sort -r | head -n 1 | tr -d '\r'); \
-	if [ -n "$$LATEST" ]; then \
-		echo "Showing log: $$LATEST"; \
-		docker compose run --rm --entrypoint="" dbmate-migration \
-			aws --endpoint-url=http://localstack:4566 s3 cp s3://migrations-bucket/migration-logs/$$LATEST -; \
-	else \
-		echo "No logs found"; \
-	fi
+s3-check: ## Check S3 bucket contents using aws-cli container
+	@echo "Checking S3 bucket contents..."
+	@docker compose run --rm --entrypoint="" s3-setup \
+		aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migrations/ --recursive

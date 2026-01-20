@@ -28,7 +28,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Setup S3 bucket for migration logs
+  # Setup S3 bucket and upload test migrations
   s3-setup:
     image: amazon/aws-cli:latest
     depends_on:
@@ -39,6 +39,8 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://localstack:4566
+    volumes:
+      - ./db/migrations:/migrations:ro
     entrypoint: /bin/bash
     command:
       - -c
@@ -46,9 +48,14 @@ services:
         set -e
         echo "Creating S3 bucket..."
         aws --endpoint-url=http://localstack:4566 s3 mb s3://migrations-bucket 2>&1 || echo "Bucket already exists"
-        echo "✓ S3 setup completed"
 
-  # dbmate migration runner (old S3 sync method)
+        echo "Uploading test migrations to version 20260120000000..."
+        aws --endpoint-url=http://localstack:4566 s3 sync /migrations/ s3://migrations-bucket/migrations/20260120000000/migrations/
+
+        echo "✓ S3 setup completed"
+        aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migrations/20260120000000/migrations/
+
+  # dbmate migration runner (Go implementation with version-based management)
   dbmate:
     build: .
     depends_on:
@@ -59,32 +66,8 @@ services:
     environment:
       DATABASE_URL: postgres://testuser:testpass@postgres:5432/testdb?sslmode=disable
       S3_BUCKET: migrations-bucket
+      S3_PATH_PREFIX: migrations/
       S3_ENDPOINT_URL: http://localstack:4566
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
-      MIGRATIONS_PATH: migrations/
-      DBMATE_NO_DUMP_SCHEMA: "true"
-    profiles:
-      - old-test
-
-  # dbmate migration runner (new apprun-dedicated method)
-  dbmate-migration:
-    build:
-      context: .
-      dockerfile: Dockerfile.migration
-    depends_on:
-      postgres:
-        condition: service_healthy
-      s3-setup:
-        condition: service_completed_successfully
-    environment:
-      DATABASE_URL: postgres://testuser:testpass@postgres:5432/testdb?sslmode=disable
-      S3_BUCKET: migrations-bucket
-      S3_ENDPOINT_URL: http://localstack:4566
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_DEFAULT_REGION: us-east-1
-      DBMATE_NO_DUMP_SCHEMA: "true"
-    profiles:
-      - test
