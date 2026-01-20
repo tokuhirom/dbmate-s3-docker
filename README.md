@@ -377,19 +377,65 @@ Then access metrics at `http://localhost:9090/metrics`.
 ## Architecture
 
 ```
-┌─────────────────┐
-│  Docker         │
-│  Container      │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌────────┐ ┌────────────────────┐
-│  DB    │ │   S3 (Versions)   │
-│ Migrate│ │ - Download files   │
-│        │ │ - Upload results   │
-└────────┘ └────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    Migration Workflow                             │
+└──────────────────────────────────────────────────────────────────┘
+
+1. Upload Phase (GitHub Actions)
+   ┌─────────────┐
+   │ Developer   │
+   │   git push  │
+   └──────┬──────┘
+          │
+          ▼
+   ┌─────────────────┐     ┌──────────────────────────────────┐
+   │ GitHub Actions  │────▶│  S3 Compatible Storage           │
+   │  aws s3 sync    │     │  s3://bucket/migrations/         │
+   └─────────────────┘     │    20260121010000/               │
+                           │      migrations/*.sql            │
+                           │      result.json (not yet)       │
+                           └──────────────────────────────────┘
+
+2. Execution Phase (Daemon Container)
+   ┌─────────────────────────────────────────────────────────────┐
+   │                  Daemon Loop (Orchestrator restarts)        │
+   │                                                             │
+   │  ┌──────────────────┐                                      │
+   │  │  dbmate-s3-docker│ (1) Poll S3                          │
+   │  │  Daemon Container│────────────────┐                     │
+   │  └──────────────────┘                │                     │
+   │          │                            ▼                     │
+   │          │                  ┌──────────────────────────┐   │
+   │          │                  │ S3 Compatible Storage    │   │
+   │          │   (2) Download   │ - List versions          │   │
+   │          │   ◀──────────────│ - Find unapplied         │   │
+   │          │   migrations     │ - Download *.sql files   │   │
+   │          │                  └──────────────────────────┘   │
+   │          │                                                  │
+   │          │ (3) Apply                                        │
+   │          ▼                                                  │
+   │  ┌──────────────┐                                          │
+   │  │  PostgreSQL  │                                          │
+   │  │  Database    │                                          │
+   │  └──────────────┘                                          │
+   │          │                                                  │
+   │          │ (4) Upload result                               │
+   │          ▼                                                  │
+   │  ┌──────────────────────────┐                              │
+   │  │ S3 Compatible Storage    │                              │
+   │  │   result.json uploaded   │                              │
+   │  └──────────────────────────┘                              │
+   │          │                                                  │
+   │          └─────▶ (5) Exit (orchestrator restarts)          │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
 ```
+
+**Key Points:**
+- **GitHub Actions**: Uploads new migration versions to S3 (triggered by git push)
+- **Daemon Container**: Polls S3, applies one version, exits (orchestrator restarts it)
+- **S3 Storage**: Central repository for versioned migrations and execution results
+- **PostgreSQL**: Target database where migrations are applied
 
 ## Differences from db-schema-sync
 
