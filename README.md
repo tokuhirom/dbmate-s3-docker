@@ -39,7 +39,7 @@ docker run --rm \
 
 ### Version Management
 
-Migrations are organized by versions in S3:
+Migrations are organized by versions in S3. Each version contains **all migration files** up to that point (cumulative):
 
 ```
 s3://your-bucket/${S3_PATH_PREFIX}/
@@ -50,9 +50,13 @@ s3://your-bucket/${S3_PATH_PREFIX}/
     result.json            # Execution result (created after run)
   20260121020000/           # Newer version
     migrations/             # Directory name "migrations/" is fixed and cannot be changed
-      20260103000000_add_posts.sql
+      20260101000000_create_users.sql      # Previous migrations included
+      20260102000000_add_email.sql         # Previous migrations included
+      20260103000000_add_posts.sql         # New migration
     # No result.json = unapplied version
 ```
+
+**Important**: Each version directory must contain **all migration files** from the beginning, not just new ones. This ensures dbmate can properly track which migrations have been applied.
 
 **S3 Path Structure**: `s3://${S3_BUCKET}/${S3_PATH_PREFIX}${VERSION}/migrations/`
 
@@ -106,21 +110,25 @@ DROP TABLE users;
 
 ### 1. Prepare S3 Structure
 
-Create a version directory in S3 with migrations:
+Create a version directory in S3 with **all migration files** (cumulative):
 
 ```bash
-# Example: Create version 20260121010000
+# Example: Create version 20260121010000 with initial migrations
 # Assuming S3_PATH_PREFIX="migrations/"
-aws s3 cp db/migrations/20260101000000_create_users.sql \
+aws s3 sync db/migrations/ \
   s3://your-bucket/migrations/20260121010000/migrations/
 
-aws s3 cp db/migrations/20260102000000_add_email.sql \
-  s3://your-bucket/migrations/20260121010000/migrations/
+# Later: Create version 20260121020000 with all migrations (old + new)
+# Copy ALL migration files, not just new ones
+aws s3 sync db/migrations/ \
+  s3://your-bucket/migrations/20260121020000/migrations/
 ```
 
 **Important**:
 - Version naming: Use `YYYYMMDDHHMMSS` format (e.g., `20260121153000` for 2026-01-21 15:30:00)
+- Each version must contain **ALL migration files** from the beginning (cumulative)
 - The `migrations/` subdirectory within each version directory is required and cannot be changed
+- Use `aws s3 sync` to upload all files at once
 
 ### 2. Configure GitHub Secrets
 
