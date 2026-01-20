@@ -178,46 +178,6 @@ See [.github/workflows/test.yml](.github/workflows/test.yml) for GitHub Actions 
 └─────────────────┘
 ```
 
-## Security Best Practices
-
-1. **Use secrets management**: Don't hardcode credentials
-2. **Limit S3 access**: Use IAM roles with minimal permissions
-3. **Use SSL**: Always use `sslmode=require` for database connections
-4. **Rotate credentials**: Regularly rotate AWS and database credentials
-
-## Troubleshooting
-
-### Connection Issues
-
-```bash
-# Test database connection
-docker compose exec postgres psql -U testuser -d testdb -c "SELECT 1;"
-
-# Test S3 connection
-make s3-ls
-```
-
-### Migration Errors
-
-```bash
-# Check logs
-make logs
-
-# Verify migration files
-make s3-ls
-
-# Open shell for debugging
-make shell
-```
-
-### Clean Start
-
-```bash
-# Remove everything and start fresh
-make clean
-make test
-```
-
 ## License
 
 MIT
