@@ -374,14 +374,6 @@ docker run --rm \
 
 Then access metrics at `http://localhost:9090/metrics`.
 
-## Workflow Best Practices
-
-1. **Version Naming**: Use `date +%Y%m%d%H%M%S` to generate version names
-2. **Incremental Versions**: Create a new version for each migration batch
-3. **Testing**: Test migrations locally before uploading to S3
-4. **Rollback**: Use dbmate's `-- migrate:down` for rollback support
-5. **Monitoring**: Use Prometheus metrics and parse `result.json` for alerting
-
 ## Architecture
 
 ```
