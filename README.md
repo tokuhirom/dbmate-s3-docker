@@ -16,59 +16,50 @@ Database migration tool using [dbmate](https://github.com/amacneil/dbmate) with 
 
 ## How It Works
 
+### Upload Phase (GitHub Actions)
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GHA as GitHub Actions
+    participant S3 as S3 Storage
+
+    Dev->>GHA: git push (with migrations)
+    GHA->>GHA: Generate version (YYYYMMDDHHMMSS)
+    GHA->>S3: Upload all migration files<br/>s3://bucket/migrations/20260121010000/migrations/*.sql
+    Note over S3: Version created<br/>(no result.json yet)
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                    Migration Workflow                             │
-└──────────────────────────────────────────────────────────────────┘
 
-1. Upload Phase (GitHub Actions)
-   ┌─────────────┐
-   │ Developer   │
-   │   git push  │
-   └──────┬──────┘
-          │
-          ▼
-   ┌─────────────────┐     ┌──────────────────────────────────┐
-   │ GitHub Actions  │────▶│  S3 Compatible Storage           │
-   │  aws s3 sync    │     │  s3://bucket/migrations/         │
-   └─────────────────┘     │    20260121010000/               │
-                           │      migrations/*.sql            │
-                           │      result.json (not yet)       │
-                           └──────────────────────────────────┘
+### Execution Phase (Daemon Container)
 
-2. Execution Phase (Daemon Container)
-   ┌─────────────────────────────────────────────────────────────┐
-   │                  Daemon Loop (Orchestrator restarts)        │
-   │                                                             │
-   │  ┌──────────────────┐                                      │
-   │  │  dbmate-s3-docker│ (1) Poll S3                          │
-   │  │  Daemon Container│────────────────┐                     │
-   │  └──────────────────┘                │                     │
-   │          │                            ▼                     │
-   │          │                  ┌──────────────────────────┐   │
-   │          │                  │ S3 Compatible Storage    │   │
-   │          │   (2) Download   │ - List versions          │   │
-   │          │   ◀──────────────│ - Find unapplied         │   │
-   │          │   migrations     │ - Download *.sql files   │   │
-   │          │                  └──────────────────────────┘   │
-   │          │                                                  │
-   │          │ (3) Apply                                        │
-   │          ▼                                                  │
-   │  ┌──────────────┐                                          │
-   │  │  PostgreSQL  │                                          │
-   │  │  Database    │                                          │
-   │  └──────────────┘                                          │
-   │          │                                                  │
-   │          │ (4) Upload result                               │
-   │          ▼                                                  │
-   │  ┌──────────────────────────┐                              │
-   │  │ S3 Compatible Storage    │                              │
-   │  │   result.json uploaded   │                              │
-   │  └──────────────────────────┘                              │
-   │          │                                                  │
-   │          └─────▶ (5) Exit (orchestrator restarts)          │
-   │                                                             │
-   └─────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Orch as Orchestrator
+    participant Daemon as dbmate-s3-docker
+    participant S3 as S3 Storage
+    participant DB as PostgreSQL
+
+    Orch->>Daemon: Start container
+
+    loop Daemon Execution
+        Daemon->>S3: List versions
+        S3-->>Daemon: Return version directories
+        Daemon->>S3: Check result.json for each version (HeadObject)
+        S3-->>Daemon: Found unapplied version: 20260121010000
+
+        Daemon->>S3: Download migrations/*.sql
+        S3-->>Daemon: Return migration files
+
+        Daemon->>DB: Apply migrations (dbmate up)
+        DB-->>Daemon: Success
+
+        Daemon->>S3: Upload result.json
+        Note over S3: Version marked as applied
+
+        Daemon->>Orch: Exit (code 0)
+    end
+
+    Orch->>Daemon: Restart container (checks for next version)
 ```
 
 **Key Points:**
@@ -76,6 +67,7 @@ Database migration tool using [dbmate](https://github.com/amacneil/dbmate) with 
 - **Daemon Container**: Polls S3, applies one version, exits (orchestrator restarts it)
 - **S3 Storage**: Central repository for versioned migrations and execution results
 - **PostgreSQL**: Target database where migrations are applied
+- **Version Tracking**: `result.json` existence indicates applied version (checked via HeadObject)
 
 ## Quick Start
 
