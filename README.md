@@ -25,8 +25,8 @@ sequenceDiagram
     participant GHA as GitHub Actions
     participant S3 as S3 Storage
 
-    Dev->>GitHub: git push (with migrations)
-    GitHub->>GHA: Trigger workflow (workflow_dispatch or push event)
+    Dev->>GitHub: Trigger workflow_dispatch
+    GitHub->>GHA: Start workflow
     GHA->>GHA: Generate version (YYYYMMDDHHMMSS)
     GHA->>S3: Upload all migration files<br/>s3://bucket/migrations/20260121010000/migrations/*.sql
     Note over S3: Version created<br/>(no result.json yet)
@@ -59,7 +59,7 @@ sequenceDiagram
 ```
 
 **Key Points:**
-- **GitHub Actions**: Uploads new migration versions to S3 (triggered by git push)
+- **GitHub Actions**: Uploads new migration versions to S3 (triggered by workflow_dispatch)
 - **Daemon Container**: Polls S3, applies one version, exits (orchestrator restarts it)
 - **S3 Storage**: Central repository for versioned migrations and execution results
 - **PostgreSQL**: Target database where migrations are applied
