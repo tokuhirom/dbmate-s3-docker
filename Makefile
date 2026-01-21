@@ -1,4 +1,4 @@
-.PHONY: help build up down test clean logs verify s3-check
+.PHONY: help build up down test clean logs verify s3-check test-wait-notify-with-slack test-wait-notify-no-slack
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -56,3 +56,18 @@ s3-check: ## Check S3 bucket contents using aws-cli container
 	@echo "Checking S3 bucket contents..."
 	@docker compose run --rm --entrypoint="" s3-setup \
 		aws --endpoint-url=http://localstack:4566 s3 ls s3://migrations-bucket/migrations/ --recursive
+
+test-wait-notify-with-slack: ## Test wait-and-notify with Slack notification
+	@echo "Testing wait-and-notify with Slack notification..."
+	@docker compose run --rm \
+		-e SLACK_INCOMING_WEBHOOK=https://httpbin.org/post \
+		dbmate wait-and-notify \
+		--version=20260120000000 \
+		--timeout=1m
+
+test-wait-notify-no-slack: ## Test wait-and-notify without Slack notification
+	@echo "Testing wait-and-notify without Slack notification..."
+	@docker compose run --rm \
+		dbmate wait-and-notify \
+		--version=20260120000000 \
+		--timeout=1m

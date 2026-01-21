@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -35,9 +36,10 @@ type CLI struct {
 	S3EndpointURL string `help:"S3 endpoint URL (for S3-compatible services)" env:"S3_ENDPOINT_URL"`
 	MetricsAddr   string `help:"Prometheus metrics endpoint address (e.g. ':9090')" env:"METRICS_ADDR"`
 
-	Daemon  DaemonCmd  `cmd:"" help:"Run as daemon (default)" default:"1"`
-	Once    OnceCmd    `cmd:"" help:"Run once and exit"`
-	Version VersionCmd `cmd:"" help:"Show version information"`
+	Daemon        DaemonCmd        `cmd:"" help:"Run as daemon (default)" default:"1"`
+	Once          OnceCmd          `cmd:"" help:"Run once and exit"`
+	WaitAndNotify WaitAndNotifyCmd `cmd:"" help:"Wait for migration result and optionally notify Slack"`
+	Version       VersionCmd       `cmd:"" help:"Show version information"`
 }
 
 // DaemonCmd runs as a daemon with periodic polling
@@ -53,6 +55,14 @@ type OnceCmd struct {
 type VersionCmd struct {
 }
 
+// WaitAndNotifyCmd waits for migration completion and optionally sends Slack notification
+type WaitAndNotifyCmd struct {
+	Version              string        `help:"Migration version to wait for (YYYYMMDDHHMMSS)" short:"v" required:""`
+	SlackIncomingWebhook string        `help:"Slack incoming webhook URL (optional)" env:"SLACK_INCOMING_WEBHOOK"`
+	Timeout              time.Duration `help:"Maximum wait time" default:"10m"`
+	PollInterval         time.Duration `help:"Polling interval" default:"5s"`
+}
+
 // Result represents the migration execution result
 type Result struct {
 	Version           string `json:"version"`
@@ -61,6 +71,26 @@ type Result struct {
 	MigrationsApplied int    `json:"migrations_applied,omitempty"`
 	Error             string `json:"error,omitempty"`
 	Log               string `json:"log"`
+}
+
+// SlackPayload represents the Slack webhook payload
+type SlackPayload struct {
+	Attachments []SlackAttachment `json:"attachments"`
+}
+
+// SlackAttachment represents a Slack message attachment
+type SlackAttachment struct {
+	Color  string       `json:"color"`
+	Title  string       `json:"title"`
+	Fields []SlackField `json:"fields"`
+	Text   string       `json:"text,omitempty"`
+}
+
+// SlackField represents a field in a Slack attachment
+type SlackField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
 }
 
 func main() {
@@ -473,6 +503,212 @@ func uploadResult(ctx context.Context, client *s3.Client, bucket, prefix, versio
 	}
 
 	slog.Info("Result uploaded", "key", key)
+	return nil
+}
+
+// downloadResult downloads and parses the result.json from S3
+func downloadResult(ctx context.Context, client *s3.Client, bucket, prefix, version string) (*Result, error) {
+	key := path.Join(prefix, version, "result.json")
+
+	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get result from S3: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read result body: %w", err)
+	}
+
+	var result Result
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse result JSON: %w", err)
+	}
+
+	slog.Info("Downloaded and parsed result", "version", version, "status", result.Status)
+	return &result, nil
+}
+
+// downloadResultWithRetry downloads result.json with exponential backoff retry
+func downloadResultWithRetry(ctx context.Context, client *s3.Client, bucket, prefix, version string) (*Result, error) {
+	backoff := time.Second
+	maxRetries := 3
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		result, err := downloadResult(ctx, client, bucket, prefix, version)
+		if err == nil {
+			return result, nil
+		}
+
+		if attempt < maxRetries {
+			slog.Warn("Failed to download result, retrying",
+				"attempt", attempt,
+				"max_retries", maxRetries,
+				"backoff", backoff,
+				"error", err)
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to download result after %d attempts", maxRetries)
+}
+
+// waitForResult polls S3 for result.json until it appears or timeout occurs
+func waitForResult(ctx context.Context, client *s3.Client, bucket, prefix, version string,
+	pollInterval, timeout time.Duration) (*Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	attempt := 0
+
+	// Check immediately first (optimization)
+	attempt++
+	slog.Info("Checking for result", "version", version, "attempt", attempt)
+	if exists, _ := checkResultExists(ctx, client, bucket, prefix, version); exists {
+		slog.Info("Result found immediately", "version", version)
+		return downloadResultWithRetry(ctx, client, bucket, prefix, version)
+	}
+
+	// Poll on interval
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("timeout waiting for result after %v (checked %d times)", timeout, attempt)
+		case <-ticker.C:
+			attempt++
+			slog.Info("Polling for result", "version", version, "attempt", attempt)
+
+			exists, err := checkResultExists(ctx, client, bucket, prefix, version)
+			if err != nil {
+				slog.Warn("Error checking result existence", "error", err)
+				continue // Retry on next interval
+			}
+
+			if exists {
+				slog.Info("Result found", "version", version, "attempts", attempt)
+				return downloadResultWithRetry(ctx, client, bucket, prefix, version)
+			}
+		}
+	}
+}
+
+// sendSlackNotification sends a notification to Slack webhook
+func sendSlackNotification(ctx context.Context, webhookURL string, version string, result *Result) error {
+	// Determine color and emoji
+	color := "good"
+	emoji := "✅"
+	if result.Status != "success" {
+		color = "danger"
+		emoji = "❌"
+	}
+
+	// Truncate log to 1000 chars (same as shell script)
+	logExcerpt := result.Log
+	if len(logExcerpt) > 1000 {
+		logExcerpt = logExcerpt[:1000]
+	}
+
+	payload := SlackPayload{
+		Attachments: []SlackAttachment{
+			{
+				Color: color,
+				Title: fmt.Sprintf("%s Migration %s", emoji, result.Status),
+				Fields: []SlackField{
+					{Title: "Version", Value: version, Short: true},
+					{Title: "Status", Value: result.Status, Short: true},
+				},
+				Text: fmt.Sprintf("```\n%s\n```", logExcerpt),
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Slack payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", webhookURL, bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send Slack notification: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("Slack API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	slog.Info("Slack notification sent successfully")
+	return nil
+}
+
+// Run executes the wait-and-notify command
+func (cmd *WaitAndNotifyCmd) Run(cli *CLI) error {
+	ctx := context.Background()
+
+	// Ensure prefix ends with /
+	s3Prefix := cli.S3PathPrefix
+	if !strings.HasSuffix(s3Prefix, "/") {
+		s3Prefix += "/"
+	}
+
+	// Create S3 client
+	s3Client, err := createS3Client(ctx, cli.S3EndpointURL)
+	if err != nil {
+		return fmt.Errorf("failed to create S3 client: %w", err)
+	}
+
+	hasSlackWebhook := cmd.SlackIncomingWebhook != ""
+
+	slog.Info("Starting wait-and-notify",
+		"version", cmd.Version,
+		"slack_notification", hasSlackWebhook,
+		"timeout", cmd.Timeout,
+		"poll_interval", cmd.PollInterval)
+
+	// Wait for result
+	result, err := waitForResult(ctx, s3Client, cli.S3Bucket, s3Prefix,
+		cmd.Version, cmd.PollInterval, cmd.Timeout)
+	if err != nil {
+		return err
+	}
+
+	// Send Slack notification if webhook URL provided
+	if hasSlackWebhook {
+		if err := sendSlackNotification(ctx, cmd.SlackIncomingWebhook, cmd.Version, result); err != nil {
+			slog.Warn("Failed to send Slack notification", "error", err)
+			// Continue - notification failure shouldn't fail the command
+		}
+	} else {
+		slog.Info("Slack webhook not configured, skipping notification")
+	}
+
+	// Exit with appropriate status
+	if result.Status != "success" {
+		return fmt.Errorf("migration failed: %s", result.Error)
+	}
+
+	slog.Info("Migration completed successfully", "version", cmd.Version)
 	return nil
 }
 

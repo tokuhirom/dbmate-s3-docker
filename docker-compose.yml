@@ -71,3 +71,23 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
+
+  # Test wait-and-notify command
+  wait-and-notify-test:
+    build: .
+    depends_on:
+      dbmate:
+        condition: service_completed_successfully
+    environment:
+      S3_BUCKET: migrations-bucket
+      S3_PATH_PREFIX: migrations/
+      S3_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      DATABASE_URL: postgres://testuser:testpass@postgres:5432/testdb?sslmode=disable
+      SLACK_INCOMING_WEBHOOK: https://httpbin.org/post
+    command: >
+      wait-and-notify
+      --version=20260120000000
+      --timeout=2m
+      --poll-interval=2s
