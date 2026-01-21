@@ -36,32 +36,23 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Orch as Orchestrator
     participant Daemon as dbmate-s3-docker
     participant S3 as S3 Storage
     participant DB as PostgreSQL
 
-    Orch->>Daemon: Start container
+    Daemon->>S3: List versions
+    S3-->>Daemon: Return version directories
+    Daemon->>S3: Check result.json for each version (HeadObject)
+    S3-->>Daemon: Found unapplied version: 20260121010000
 
-    loop Daemon Execution
-        Daemon->>S3: List versions
-        S3-->>Daemon: Return version directories
-        Daemon->>S3: Check result.json for each version (HeadObject)
-        S3-->>Daemon: Found unapplied version: 20260121010000
+    Daemon->>S3: Download migrations/*.sql
+    S3-->>Daemon: Return migration files
 
-        Daemon->>S3: Download migrations/*.sql
-        S3-->>Daemon: Return migration files
+    Daemon->>DB: Apply migrations (dbmate up)
+    DB-->>Daemon: Success
 
-        Daemon->>DB: Apply migrations (dbmate up)
-        DB-->>Daemon: Success
-
-        Daemon->>S3: Upload result.json
-        Note over S3: Version marked as applied
-
-        Daemon->>Orch: Exit (code 0)
-    end
-
-    Orch->>Daemon: Restart container (checks for next version)
+    Daemon->>S3: Upload result.json
+    Note over S3: Version marked as applied
 ```
 
 **Key Points:**
