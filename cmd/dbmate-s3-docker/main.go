@@ -76,7 +76,6 @@ type PushCmd struct {
 	S3PathPrefix  string `help:"S3 path prefix (e.g. 'migrations/')" env:"S3_PATH_PREFIX" required:"" name:"s3-path-prefix"`
 	Version       string `help:"Version timestamp (YYYYMMDDHHMMSS)" required:"" name:"version" short:"v"`
 	DryRun        bool   `help:"Show what would be uploaded without uploading" name:"dry-run"`
-	Force         bool   `help:"Overwrite existing version if it exists" name:"force"`
 	Validate      bool   `help:"Validate migration files before upload" default:"true" name:"validate"`
 }
 
@@ -254,15 +253,13 @@ func (c *PushCmd) Run(cli *CLI) error {
 		return fmt.Errorf("failed to create S3 client: %w", err)
 	}
 
-	// Check if version already exists (unless --force)
-	if !c.Force {
-		exists, err := checkResultExists(ctx, s3Client, c.S3Bucket, s3Prefix, c.Version)
-		if err != nil {
-			return fmt.Errorf("failed to check if version exists: %w", err)
-		}
-		if exists {
-			return fmt.Errorf("version %s already exists (use --force to overwrite)", c.Version)
-		}
+	// Check if version already exists
+	exists, err := checkResultExists(ctx, s3Client, c.S3Bucket, s3Prefix, c.Version)
+	if err != nil {
+		return fmt.Errorf("failed to check if version exists: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("version %s already exists", c.Version)
 	}
 
 	// Read and filter migration files

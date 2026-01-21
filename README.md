@@ -280,14 +280,7 @@ VERSION=$(date -u +%Y%m%d%H%M%S)
 - `--s3-path-prefix` (required): S3 path prefix (also via `S3_PATH_PREFIX` env var)
 - `--version, -v` (required): Version timestamp (YYYYMMDDHHMMSS)
 - `--dry-run`: Show what would be uploaded without uploading
-- `--force`: Overwrite existing version if it exists
 - `--validate`: Validate migration files before upload (default: true)
-
-**Behavior:**
-
-1. Validates migration files (checks filename format and `-- migrate:up` marker)
-2. Checks if version already exists (fails unless `--force` is used)
-3. Uploads all `.sql` files to S3 at `s3://bucket/prefix/version/migrations/`
 
 ### wait-and-notify
 
