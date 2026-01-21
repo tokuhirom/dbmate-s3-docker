@@ -9,6 +9,7 @@ RUN go mod download
 
 # Copy source code
 COPY cmd/ ./cmd/
+COPY internal/ ./internal/
 
 # Build binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o dbmate-s3-docker ./cmd/dbmate-s3-docker
