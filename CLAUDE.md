@@ -64,7 +64,7 @@ For more details, see [dbmate documentation](https://github.com/amacneil/dbmate)
 - This project uses [tagpr](https://github.com/Songmu/tagpr) for automated versioning
 - On each merge to `main`, tagpr creates/updates a release PR
 - When the release PR is merged, a git tag is automatically created
-- Docker images are automatically built and pushed to ghcr.io with semantic version tags
+- Docker images and binary releases are automatically built and published
 
 ### Docker Image Publishing
 
@@ -78,7 +78,8 @@ Docker images are automatically built and published to GitHub Container Registry
   - Creates/updates release PR on each merge to main
   - Creates git tag when release PR is merged
 - `.github/workflows/release.yml` - Release builds (version tags)
-  - **Version tags**: Build and push release images with semantic version tags
+  - **Binary releases**: Build binaries using GoReleaser
+  - **Docker images**: Build and push release images with semantic version tags
   - Triggered automatically when tagpr creates a release tag
 
 **Image tags**:
@@ -86,6 +87,23 @@ Docker images are automatically built and published to GitHub Container Registry
 - `v1.2.3` - Specific version
 - `1.2`, `1` - Major/minor version aliases
 - `main-<sha>` - Development builds from main branch
+
+### Binary Releases
+
+Binary releases are automatically built using [GoReleaser](https://goreleaser.com/) when a version tag is created.
+
+**Supported platforms**:
+- Linux AMD64 (`linux/amd64`)
+- Linux ARM64 (`linux/arm64`)
+- macOS ARM64 (`darwin/arm64`)
+
+**Release artifacts**:
+- Pre-built binaries for each platform
+- Archive files (`.tar.gz`)
+- Checksums file (`checksums.txt`)
+- Automatically generated changelog
+
+**Configuration**: `.goreleaser.yml`
 
 ### Making Container Images Public
 
