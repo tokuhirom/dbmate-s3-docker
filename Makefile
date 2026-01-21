@@ -72,7 +72,7 @@ test-wait-notify-with-slack: ## Test wait-and-notify with Slack notification
 	@docker compose run --rm \
 		-e SLACK_INCOMING_WEBHOOK=http://webhook-logger-test:9876/webhook \
 		dbmate wait-and-notify \
-		--version=20260120000000 \
+		-v 20260120000000 \
 		--timeout=1m
 	@echo ""
 	@docker stop webhook-logger-test > /dev/null 2>&1 || true
@@ -82,7 +82,7 @@ test-wait-notify-no-slack: ## Test wait-and-notify without Slack notification
 	@echo "Testing wait-and-notify without Slack notification..."
 	@docker compose run --rm \
 		dbmate wait-and-notify \
-		--version=20260120000000 \
+		-v 20260120000000 \
 		--timeout=1m
 
 test-slack-payload: ## Verify Slack webhook payload (method, headers, JSON structure)
@@ -100,7 +100,7 @@ test-slack-payload: ## Verify Slack webhook payload (method, headers, JSON struc
 	@docker compose run --rm \
 		-e SLACK_INCOMING_WEBHOOK=http://webhook-logger-test:9876/webhook \
 		dbmate wait-and-notify \
-		--version=20260120000000 \
+		-v 20260120000000 \
 		--timeout=1m > /dev/null 2>&1
 	@echo ""
 	@echo "=== Webhook Payload Verification ==="

@@ -1,4 +1,4 @@
-package main
+package shared
 
 import (
 	"log/slog"
@@ -42,31 +42,31 @@ var (
 	)
 )
 
-// recordMigrationAttempt records a migration attempt
-func recordMigrationAttempt(status string) {
+// RecordMigrationAttempt records a migration attempt
+func RecordMigrationAttempt(status string) {
 	migrationAttempts.WithLabelValues(status).Inc()
 }
 
-// recordMigrationDuration records the migration duration
-func recordMigrationDuration(seconds float64) {
+// RecordMigrationDuration records the migration duration
+func RecordMigrationDuration(seconds float64) {
 	migrationDuration.Observe(seconds)
 }
 
-// recordLastMigrationTimestamp records the last migration timestamp
-func recordLastMigrationTimestamp(timestamp float64) {
+// RecordLastMigrationTimestamp records the last migration timestamp
+func RecordLastMigrationTimestamp(timestamp float64) {
 	lastMigrationTimestamp.Set(timestamp)
 }
 
-// recordCurrentVersion records the current version
-func recordCurrentVersion(version string) {
+// RecordCurrentVersion records the current version
+func RecordCurrentVersion(version string) {
 	// Reset all version gauges
 	currentVersion.Reset()
 	// Set the current version to 1
 	currentVersion.WithLabelValues(version).Set(1)
 }
 
-// startMetricsServer starts the Prometheus metrics HTTP server
-func startMetricsServer(addr string) {
+// StartMetricsServer starts the Prometheus metrics HTTP server
+func StartMetricsServer(addr string) {
 	http.Handle("/metrics", promhttp.Handler())
 	slog.Info("Starting metrics server", "addr", addr)
 
