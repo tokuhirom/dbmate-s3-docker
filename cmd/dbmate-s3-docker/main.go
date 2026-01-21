@@ -281,22 +281,19 @@ func findUnappliedVersion(ctx context.Context, client *s3.Client, bucket, prefix
 
 	slog.Info("Found versions", "count", len(versions), "versions", versions)
 
-	// Find first version without result.json
-	for _, version := range versions {
-		exists, err := checkResultExists(ctx, client, bucket, prefix, version)
-		if err != nil {
-			slog.Warn("Failed to check result.json", "version", version, "error", err)
-			continue
-		}
-
-		if !exists {
-			slog.Info("Found unapplied version", "version", version)
-			return version, nil
-		}
-
-		slog.Info("Version already applied (result.json exists), skipping", "version", version)
+	// Check the newest version (last in sorted list)
+	newestVersion := versions[len(versions)-1]
+	exists, err := checkResultExists(ctx, client, bucket, prefix, newestVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to check result.json for newest version %s: %w", newestVersion, err)
 	}
 
+	if !exists {
+		slog.Info("Found unapplied newest version", "version", newestVersion)
+		return newestVersion, nil
+	}
+
+	slog.Info("Newest version already applied (result.json exists)", "version", newestVersion)
 	return "", fmt.Errorf("no unapplied versions found")
 }
 
