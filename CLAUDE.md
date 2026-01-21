@@ -67,7 +67,10 @@ Docker images are automatically built and published to GitHub Container Registry
 - `.github/workflows/docker.yml` - CI builds (PRs and main branch)
   - **Pull Requests**: Test build only (no push)
   - **Main branch**: Build and push development images with branch name and commit SHA tags
-- `.github/workflows/tagpr.yml` - Release builds (version tags)
+- `.github/workflows/tagpr.yml` - Version management
+  - Creates/updates release PR on each merge to main
+  - Creates git tag when release PR is merged
+- `.github/workflows/release.yml` - Release builds (version tags)
   - **Version tags**: Build and push release images with semantic version tags
   - Triggered automatically when tagpr creates a release tag
 

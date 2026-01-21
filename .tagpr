@@ -1,55 +1,8 @@
-# config file for the tagpr in git config format
-# The tagpr generates the initial configuration, which you can rewrite to suit your environment.
-# CONFIGURATIONS:
-#   tagpr.releaseBranch
-#       Generally, it is "main." It is the branch for releases. The tagpr tracks this branch,
-#       creates or updates a pull request as a release candidate, or tags when they are merged.
-#
-#   tagpr.versionFile
-#       Versioning file containing the semantic version needed to be updated at release.
-#       It will be synchronized with the "git tag".
-#       Often this is a meta file such as gemspec, setup.cfg, package.json, etc.
-#       Sometimes the source code file, such as version.go or Bar.pm, is used.
-#       If you do not want to use versioning files but only git tags, specify the "-" string here.
-#       You can specify multiple version files by comma separated strings.
-#
-#   tagpr.vPrefix
-#       Flag whether or not v-prefix is needed for git tags. (e.g. "v1.2.3" if true)
-#       This is only a tagging convention, not how it is described in the version file.
-#
-#   tagpr.changelog (Optional)
-#       Flag whether or not changelog is added to the release pull request body.
-#       If true, the release pull request will include changelog.
-#       Default is true.
-#
-#   tagpr.command (Optional)
-#       Command to be executed after tagging. Rendered in a Go template format.
-#       Env `TAGPR_VERSION` is always available and holds the release version.
-#
-#   tagpr.template (Optional)
-#       Pull request template in go template format
-#
-#   tagpr.release (Optional)
-#       GitHub Release creation behavior after tagging. Possible values are:
-#         - true: Create a GitHub Release (default)
-#         - false: Do not create a GitHub Release
-#         - draft: Create a GitHub Release as a draft
-#
-#   tagpr.majorLabels (Optional)
-#       Label to indicate that the next version should be a major version up.
-#       Default is [major].
-#
-#   tagpr.minorLabels (Optional)
-#       Label to indicate that the next version should be a minor version up.
-#       Default is [minor].
-#
-#   tagpr.rcBranchPrefix (Optional)
-#       Prefix for release candidate branch. Default is "rc-".
-#
+# tagpr configuration
+# https://github.com/Songmu/tagpr
 
 [tagpr]
-	vPrefix = true
-	releaseBranch = main
-	versionFile = -
-	changelog = true
-	release = true
+releaseBranch = main
+vPrefix = true
+versionFile = -
+labels = release
