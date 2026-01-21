@@ -1,4 +1,4 @@
-.PHONY: help build up down test clean logs verify s3-check test-wait-notify-with-slack test-wait-notify-no-slack test-slack-payload test-version test-daemon
+.PHONY: help build up down test clean logs verify s3-check test-wait-notify-with-slack test-wait-notify-no-slack test-slack-payload test-version test-daemon test-push
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -160,3 +160,83 @@ test-daemon: up ## Test daemon mode (runs for 15s and checks migration execution
 	@echo "Stopping daemon..."
 	@docker compose down > /dev/null 2>&1
 	@echo "✓ Daemon mode test complete"
+
+test-push: up ## Test push command (upload migrations to S3)
+	@echo "Building dbmate-s3-docker binary..."
+	@cd cmd/dbmate-s3-docker && go build -o ../../dbmate-s3-docker
+	@echo ""
+	@echo "Testing push command with dry-run..."
+	@OUTPUT=$$(S3_BUCKET=migrations-bucket \
+		S3_PATH_PREFIX=migrations/ \
+		S3_ENDPOINT_URL=http://localhost:4566 \
+		AWS_ACCESS_KEY_ID=test \
+		AWS_SECRET_ACCESS_KEY=test \
+		AWS_DEFAULT_REGION=us-east-1 \
+		./dbmate-s3-docker push \
+		--migrations-dir=db/migrations \
+		--version=20991231235950 \
+		--dry-run 2>&1); \
+	if echo "$$OUTPUT" | grep -q "Dry-run mode"; then \
+		echo "✓ Dry-run mode works"; \
+	else \
+		echo "✗ Failed: Dry-run did not work"; \
+		echo "$$OUTPUT"; \
+		rm -f ./dbmate-s3-docker; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Testing push command with explicit version..."
+	@VERSION=20991231235959; \
+	S3_BUCKET=migrations-bucket \
+		S3_PATH_PREFIX=migrations/ \
+		S3_ENDPOINT_URL=http://localhost:4566 \
+		AWS_ACCESS_KEY_ID=test \
+		AWS_SECRET_ACCESS_KEY=test \
+		AWS_DEFAULT_REGION=us-east-1 \
+		./dbmate-s3-docker push \
+		--migrations-dir=db/migrations \
+		--version=$$VERSION > /dev/null 2>&1; \
+	echo "✓ Push succeeded with version: $$VERSION"; \
+	echo ""; \
+	echo "Verifying files in S3..."; \
+	docker compose run --rm --entrypoint="" s3-setup \
+		aws --endpoint-url=http://localstack:4566 s3 ls \
+		s3://migrations-bucket/migrations/$$VERSION/migrations/ --recursive; \
+	FILE_COUNT=$$(docker compose run --rm --entrypoint="" s3-setup \
+		aws --endpoint-url=http://localstack:4566 s3 ls \
+		s3://migrations-bucket/migrations/$$VERSION/migrations/ --recursive 2>&1 | grep -c ".sql" || echo 0); \
+	if [ "$$FILE_COUNT" -gt 0 ]; then \
+		echo ""; \
+		echo "✓ Files uploaded successfully ($$FILE_COUNT files)"; \
+	else \
+		echo ""; \
+		echo "✗ Failed: No files found in S3"; \
+		rm -f ./dbmate-s3-docker; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Testing validation failure..."
+	@mkdir -p /tmp/invalid-migrations
+	@echo "invalid content" > /tmp/invalid-migrations/invalid.sql
+	@OUTPUT=$$(S3_BUCKET=migrations-bucket \
+		S3_PATH_PREFIX=migrations/ \
+		S3_ENDPOINT_URL=http://localhost:4566 \
+		AWS_ACCESS_KEY_ID=test \
+		AWS_SECRET_ACCESS_KEY=test \
+		AWS_DEFAULT_REGION=us-east-1 \
+		./dbmate-s3-docker push \
+		--migrations-dir=/tmp/invalid-migrations \
+		--version=20991231235958 2>&1) || true; \
+	if echo "$$OUTPUT" | grep -q "validation failed"; then \
+		echo "✓ Validation catches invalid files"; \
+	else \
+		echo "✗ Failed: Validation did not catch invalid file"; \
+		echo "$$OUTPUT"; \
+		rm -rf /tmp/invalid-migrations; \
+		rm -f ./dbmate-s3-docker; \
+		exit 1; \
+	fi
+	@rm -rf /tmp/invalid-migrations
+	@rm -f ./dbmate-s3-docker
+	@echo ""
+	@echo "✓ All push command tests passed"

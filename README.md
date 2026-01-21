@@ -133,21 +133,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate migration version
+        run: |
+          VERSION=$(date -u +%Y%m%d%H%M%S)
+          echo "MIGRATION_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Generated version: $VERSION"
+
+      - name: Download dbmate-s3-docker
+        run: |
+          curl -LO https://github.com/tokuhirom/dbmate-s3-docker/releases/latest/download/dbmate-s3-docker_linux_amd64.tar.gz
+          tar -xzf dbmate-s3-docker_linux_amd64.tar.gz
+          chmod +x dbmate-s3-docker
+
       - name: Upload migrations to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PATH_PREFIX: ${{ secrets.S3_PATH_PREFIX }}
         run: |
-          # Generate version timestamp
-          VERSION=$(date -u +%Y%m%d%H%M%S)
-
-          # Upload migration files
-          aws s3 sync db/migrations/ \
-            s3://${{ secrets.S3_BUCKET }}/${{ secrets.S3_PATH_PREFIX }}${VERSION}/migrations/ \
-            --endpoint-url=$S3_ENDPOINT_URL
-
-          echo "Uploaded migrations as version: ${VERSION}"
+          ./dbmate-s3-docker push \
+            --migrations-dir=db/migrations \
+            --version=${{ env.MIGRATION_VERSION }}
 
       - name: Wait for completion and notify
         if: always()
@@ -159,20 +167,14 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SLACK_INCOMING_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          VERSION=$(date -u +%Y%m%d%H%M%S)
-
-          # Download dbmate-s3-docker binary
-          curl -LO https://github.com/tokuhirom/dbmate-s3-docker/releases/latest/download/dbmate-s3-docker_linux_amd64.tar.gz
-          tar -xzf dbmate-s3-docker_linux_amd64.tar.gz
-
-          # Wait for migration and send Slack notification
-          ./dbmate-s3-docker wait-and-notify --version=$VERSION
+          ./dbmate-s3-docker wait-and-notify --version=${{ env.MIGRATION_VERSION }}
 ```
 
 This workflow:
 - Triggers manually via `workflow_dispatch`
 - Generates a version timestamp (YYYYMMDDHHMMSS format)
-- Uploads all migration files to S3 under the new version
+- Downloads the dbmate-s3-docker binary
+- Uses the `push` command to upload migrations with the generated version
 - Uses `wait-and-notify` command to wait for daemon to apply migrations
 - Sends Slack notification with migration result (if `SLACK_WEBHOOK_URL` secret is configured)
 
@@ -239,6 +241,46 @@ docker run --rm \
   -e S3_PATH_PREFIX="migrations/" \
   ghcr.io/tokuhirom/dbmate-s3-docker:latest once
 ```
+
+### push
+
+Uploads migration files to S3. This eliminates the need for AWS CLI in your CI/CD pipeline.
+
+**Usage:**
+
+```bash
+# Generate version
+VERSION=$(date -u +%Y%m%d%H%M%S)
+
+# Upload migrations
+./dbmate-s3-docker push \
+  --migrations-dir=db/migrations \
+  --s3-bucket=your-bucket \
+  --s3-path-prefix=migrations/ \
+  --version=$VERSION
+
+# Use same version for wait-and-notify
+./dbmate-s3-docker wait-and-notify --version=$VERSION
+```
+
+**Dry run (preview without uploading):**
+
+```bash
+VERSION=$(date -u +%Y%m%d%H%M%S)
+./dbmate-s3-docker push \
+  --migrations-dir=db/migrations \
+  --version=$VERSION \
+  --dry-run
+```
+
+**Flags:**
+
+- `--migrations-dir, -m` (required): Local directory containing migration files
+- `--s3-bucket` (required): S3 bucket name (also via `S3_BUCKET` env var)
+- `--s3-path-prefix` (required): S3 path prefix (also via `S3_PATH_PREFIX` env var)
+- `--version, -v` (required): Version timestamp (YYYYMMDDHHMMSS)
+- `--dry-run`: Show what would be uploaded without uploading
+- `--validate`: Validate migration files before upload (default: true)
 
 ### wait-and-notify
 
