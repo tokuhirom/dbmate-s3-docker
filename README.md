@@ -351,30 +351,6 @@ This tool is inspired by [db-schema-sync](https://github.com/tokuhirom/db-schema
 - **Versioning**: Simple date-based versions (YYYYMMDDHHMMSS)
 - **Result Format**: JSON result with detailed logs
 
-## Development & Release
-
-### Docker Image Publishing
-
-Docker images are automatically built and published to GitHub Container Registry (ghcr.io) via GitHub Actions:
-
-**Continuous Integration** (`.github/workflows/docker.yml`):
-- **Pull Requests**: Test build only (no push)
-- **Main branch**: Build and push development images with branch name and commit SHA tags
-
-**Release** (`.github/workflows/tagpr.yml`):
-- **Version tags**: Build and push release images with semantic version tags (e.g., `v1.0.0`, `1.0`, `1`, `latest`)
-- Triggered automatically when tagpr creates a release tag
-
-### Making Container Images Public
-
-After the first release, make the container image public:
-
-1. Go to **Packages** in your GitHub repository
-2. Click on the `dbmate-s3-docker` package
-3. Go to **Package settings**
-4. Scroll down to **Danger Zone**
-5. Click **Change visibility** → **Public**
-
 ## License
 
 MIT

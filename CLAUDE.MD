@@ -61,9 +61,15 @@ For more details, see [dbmate documentation](https://github.com/amacneil/dbmate)
 
 ### Docker Image Publishing
 
+Docker images are automatically built and published to GitHub Container Registry (ghcr.io) via GitHub Actions.
+
 **GitHub Actions workflows**:
 - `.github/workflows/docker.yml` - CI builds (PRs and main branch)
+  - **Pull Requests**: Test build only (no push)
+  - **Main branch**: Build and push development images with branch name and commit SHA tags
 - `.github/workflows/tagpr.yml` - Release builds (version tags)
+  - **Version tags**: Build and push release images with semantic version tags
+  - Triggered automatically when tagpr creates a release tag
 
 **Image tags**:
 - `latest` - Latest stable release
@@ -71,8 +77,12 @@ For more details, see [dbmate documentation](https://github.com/amacneil/dbmate)
 - `1.2`, `1` - Major/minor version aliases
 - `main-<sha>` - Development builds from main branch
 
-### First Release Setup
+### Making Container Images Public
 
-After the first release, make the container package public:
-1. Go to GitHub repository → Packages → dbmate-s3-docker
-2. Package settings → Change visibility → Public
+After the first release, make the container image public:
+
+1. Go to **Packages** in your GitHub repository
+2. Click on the `dbmate-s3-docker` package
+3. Go to **Package settings**
+4. Scroll down to **Danger Zone**
+5. Click **Change visibility** → **Public**
