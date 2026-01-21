@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.0.4](https://github.com/tokuhirom/dbmate-s3-docker/compare/v0.0.3...v0.0.4) - 2026-01-21
+- Improve webhook testing with payload verification by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/13
+- Add test for version subcommand by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/15
+- Add test for daemon mode by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/16
+- feat: Add push subcommand for uploading migrations to S3 by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/17
+
 ## [v0.0.3](https://github.com/tokuhirom/dbmate-s3-docker/compare/v0.0.2...v0.0.3) - 2026-01-21
 - Add wait-and-notify subcommand with optional Slack notification by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/11
 
