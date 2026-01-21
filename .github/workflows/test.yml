@@ -28,7 +28,7 @@ jobs:
         docker compose logs s3-setup
 
     - name: Run migrations
-      run: docker compose run --rm dbmate
+      run: docker compose run --rm dbmate once
 
     - name: Verify database schema
       run: |

@@ -20,7 +20,7 @@ down: ## Stop and remove all containers
 
 test: up ## Run migration test
 	@echo "Running dbmate migration..."
-	docker compose run --rm dbmate
+	docker compose run --rm dbmate once
 	@echo ""
 	@echo "Verifying migrations..."
 	@$(MAKE) verify
