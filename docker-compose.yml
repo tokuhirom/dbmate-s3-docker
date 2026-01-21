@@ -16,7 +16,7 @@ services:
 
   # LocalStack for S3-compatible storage
   localstack:
-    image: localstack/localstack:3.0
+    image: localstack/localstack:latest
     environment:
       SERVICES: s3
       DEBUG: 0
