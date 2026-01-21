@@ -52,6 +52,13 @@ For more details, see [dbmate documentation](https://github.com/amacneil/dbmate)
 
 ## Release Process
 
+### Branch Protection
+
+- The `main` branch is protected with repository rules
+- Direct pushes to `main` are not allowed
+- All changes must go through pull requests
+- Required status checks must pass before merging
+
 ### Automated Release with tagpr
 
 - This project uses [tagpr](https://github.com/Songmu/tagpr) for automated versioning
