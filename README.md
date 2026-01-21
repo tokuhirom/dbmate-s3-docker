@@ -59,9 +59,9 @@ sequenceDiagram
     loop Every POLL_INTERVAL (default: 30s)
         Daemon->>S3: List versions
         S3-->>Daemon: Return version directories
-        Daemon->>S3: Check result.json for each version (HeadObject)
+        Daemon->>S3: Check result.json for newest version (HeadObject)
 
-        alt Unapplied version found
+        alt Newest version unapplied
             S3-->>Daemon: Found unapplied version: 20260121010000
             Daemon->>S3: Download migrations/*.sql
             S3-->>Daemon: Return migration files
@@ -69,8 +69,8 @@ sequenceDiagram
             DB-->>Daemon: Success
             Daemon->>S3: Upload result.json
             Note over S3: Version marked as applied
-        else All versions applied
-            S3-->>Daemon: No unapplied versions
+        else Newest version already applied
+            S3-->>Daemon: Newest version already applied
             Note over Daemon: Wait for next tick
         end
     end
@@ -78,7 +78,7 @@ sequenceDiagram
 
 **Key Points:**
 - **GitHub Actions**: Uploads new migration versions to S3 (triggered by workflow_dispatch)
-- **Daemon Container**: Polls S3 periodically (ticker-based), applies one version per poll cycle
+- **Daemon Container**: Polls S3 periodically (ticker-based), applies the newest version if unapplied
 - **S3 Storage**: Central repository for versioned migrations and execution results
 - **PostgreSQL**: Target database where migrations are applied
 - **Version Tracking**: `result.json` existence indicates applied version (checked via HeadObject)
@@ -105,8 +105,8 @@ docker run -d \
 
 The daemon mode (default):
 1. Polls S3 every `POLL_INTERVAL` (default: 30 seconds)
-2. Checks for unapplied versions
-3. Applies the oldest unapplied version (if found)
+2. Checks the newest version
+3. Applies the newest version (if unapplied)
 4. Uploads `result.json` to S3
 5. Continues polling indefinitely
 
@@ -256,12 +256,12 @@ s3://your-bucket/${S3_PATH_PREFIX}/
 ### Execution Flow
 
 1. List all version directories from S3 (sorted numerically)
-2. Find the first version without `result.json`
-3. Download migrations from that version
+2. Check the newest version for `result.json`
+3. If the newest version is unapplied, download migrations from that version
 4. Run `dbmate up` to apply migrations
 5. Upload `result.json` with execution details (both success and failure)
 
-**Key behavior**: The tool applies **one version at a time**, starting from the oldest unapplied version. A version is considered applied if `result.json` exists, regardless of success or failure status.
+**Key behavior**: The tool applies the **newest version**. If the newest version is already applied, no action is taken. A version is considered applied if `result.json` exists, regardless of success or failure status.
 
 ## Environment Variables
 
