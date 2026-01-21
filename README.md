@@ -40,19 +40,22 @@ sequenceDiagram
     participant S3 as S3 Storage
     participant DB as PostgreSQL
 
-    Daemon->>S3: List versions
-    S3-->>Daemon: Return version directories
-    Daemon->>S3: Check result.json for each version (HeadObject)
-    S3-->>Daemon: Found unapplied version: 20260121010000
+    loop Every execution (orchestrator restarts)
+        Daemon->>S3: List versions
+        S3-->>Daemon: Return version directories
+        Daemon->>S3: Check result.json for each version (HeadObject)
+        S3-->>Daemon: Found unapplied version: 20260121010000
 
-    Daemon->>S3: Download migrations/*.sql
-    S3-->>Daemon: Return migration files
+        Daemon->>S3: Download migrations/*.sql
+        S3-->>Daemon: Return migration files
 
-    Daemon->>DB: Apply migrations (dbmate up)
-    DB-->>Daemon: Success
+        Daemon->>DB: Apply migrations (dbmate up)
+        DB-->>Daemon: Success
 
-    Daemon->>S3: Upload result.json
-    Note over S3: Version marked as applied
+        Daemon->>S3: Upload result.json
+        Note over S3: Version marked as applied
+        Note over Daemon: Exit (orchestrator restarts container)
+    end
 ```
 
 **Key Points:**
