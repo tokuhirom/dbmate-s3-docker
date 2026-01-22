@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.0.6](https://github.com/tokuhirom/dbmate-s3-docker/compare/v0.0.5...v0.0.6) - 2026-01-22
+- feat: Add comprehensive Go test suite with testcontainers by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/22
+- refactor: Remove docker compose based tests in favor of Go tests by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/25
+- Bump golang.org/x/crypto from 0.43.0 to 0.45.0 by @dependabot[bot] in https://github.com/tokuhirom/dbmate-s3-docker/pull/24
+
 ## [v0.0.5](https://github.com/tokuhirom/dbmate-s3-docker/compare/v0.0.4...v0.0.5) - 2026-01-21
 - refactor: Split main.go by subcommands into internal packages by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/18
 
