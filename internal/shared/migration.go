@@ -70,6 +70,11 @@ func ExecuteMigration(ctx context.Context, client *s3.Client, bucket, prefix, ve
 	migrationCount := len(files)
 	log(fmt.Sprintf("Downloaded %d migration files", migrationCount))
 
+	// List downloaded files
+	for _, f := range files {
+		log(fmt.Sprintf("  - %s", f.Name()))
+	}
+
 	// Run dbmate using library
 	log("Running dbmate up...")
 
@@ -85,6 +90,8 @@ func ExecuteMigration(ctx context.Context, client *s3.Client, bucket, prefix, ve
 	db := dbmate.New(u)
 	db.MigrationsDir = []string{migrationsDir}
 	db.AutoDumpSchema = false
+	db.Verbose = true
+	db.Log = &logBuffer
 
 	if err := db.CreateAndMigrate(); err != nil {
 		log(fmt.Sprintf("✗ Migration failed: %v", err))
