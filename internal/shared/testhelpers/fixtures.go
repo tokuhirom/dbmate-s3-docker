@@ -140,7 +140,7 @@ func SlackWebhookPayload(status, version, message string) string {
       "color": "%s",
       "title": "Migration %s",
       "text": "Version: %s\n%s",
-      "footer": "dbmate-s3-docker",
+      "footer": "dbmate-deployer",
       "ts": 1704067200
     }
   ]

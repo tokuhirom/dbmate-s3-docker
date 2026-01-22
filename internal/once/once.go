@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tokuhirom/dbmate-s3-docker/internal/shared"
+	"github.com/tokuhirom/dbmate-deployer/internal/shared"
 )
 
 // Cmd runs once and exits

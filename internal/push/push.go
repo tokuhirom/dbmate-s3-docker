@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/tokuhirom/dbmate-s3-docker/internal/shared"
+	"github.com/tokuhirom/dbmate-deployer/internal/shared"
 )
 
 // Cmd uploads migration files to S3

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tokuhirom/dbmate-s3-docker/internal/shared"
+	"github.com/tokuhirom/dbmate-deployer/internal/shared"
 )
 
 // Cmd waits for migration completion and optionally sends Slack notification

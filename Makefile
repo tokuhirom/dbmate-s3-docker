@@ -7,7 +7,7 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the binary
-	go build -o dbmate-s3-docker ./cmd/dbmate-s3-docker
+	go build -o dbmate-deployer ./cmd/dbmate-deployer
 
 test: ## Run all tests (unit + integration)
 	go test -v ./...
@@ -22,5 +22,5 @@ lint: ## Run linter
 	golangci-lint run
 
 clean: ## Clean build artifacts
-	rm -f dbmate-s3-docker
+	rm -f dbmate-deployer
 	go clean -testcache

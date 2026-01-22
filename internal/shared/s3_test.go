@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/shared/testhelpers"
+	"github.com/tokuhirom/dbmate-deployer/internal/shared/testhelpers"
 )
 
 func TestCheckResultExists(t *testing.T) {

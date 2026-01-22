@@ -1,4 +1,4 @@
-# Claude Code Guidelines for dbmate-s3-docker
+# Claude Code Guidelines for dbmate-deployer
 
 ## Commit Messages
 
@@ -22,9 +22,9 @@
 
 ## Testing
 
-- Test locally using the docker-compose setup
-- Verify S3 integration with LocalStack
-- Ensure PostgreSQL migrations work correctly
+- Run tests with `make test` or `go test ./...`
+- Integration tests use testcontainers-go (requires Docker)
+- Unit tests can be run with `make test-unit`
 
 ## Migration Files (dbmate reference)
 
@@ -110,7 +110,7 @@ Binary releases are automatically built using [GoReleaser](https://goreleaser.co
 After the first release, make the container image public:
 
 1. Go to **Packages** in your GitHub repository
-2. Click on the `dbmate-s3-docker` package
+2. Click on the `dbmate-deployer` package
 3. Go to **Package settings**
 4. Scroll down to **Danger Zone**
 5. Click **Change visibility** → **Public**

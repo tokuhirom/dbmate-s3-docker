@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/daemon"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/once"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/push"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/version"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/wait"
+	"github.com/tokuhirom/dbmate-deployer/internal/daemon"
+	"github.com/tokuhirom/dbmate-deployer/internal/once"
+	"github.com/tokuhirom/dbmate-deployer/internal/push"
+	"github.com/tokuhirom/dbmate-deployer/internal/version"
+	"github.com/tokuhirom/dbmate-deployer/internal/wait"
 )
 
 var (
@@ -121,8 +121,8 @@ func (c *VersionCmd) Run(cli *CLI) error {
 func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli,
-		kong.Name("dbmate-s3-docker"),
-		kong.Description("Database migration tool using dbmate with S3-based version management"),
+		kong.Name("dbmate-deployer"),
+		kong.Description("Database migration deployment tool using dbmate with S3-based version management"),
 		kong.UsageOnError(),
 	)
 

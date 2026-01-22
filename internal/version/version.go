@@ -8,6 +8,6 @@ type Cmd struct {
 
 // Execute prints the version information
 func Execute(c *Cmd, version string) error {
-	fmt.Printf("dbmate-s3-docker version %s\n", version)
+	fmt.Printf("dbmate-deployer version %s\n", version)
 	return nil
 }

@@ -1,4 +1,4 @@
-module github.com/tokuhirom/dbmate-s3-docker
+module github.com/tokuhirom/dbmate-deployer
 
 go 1.24.0
 

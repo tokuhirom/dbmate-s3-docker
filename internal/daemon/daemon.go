@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/tokuhirom/dbmate-s3-docker/internal/shared"
+	"github.com/tokuhirom/dbmate-deployer/internal/shared"
 )
 
 // Cmd runs as a daemon with periodic polling

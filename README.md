@@ -1,7 +1,7 @@
-# dbmate-s3-docker
+# dbmate-deployer
 
-[![GitHub release](https://img.shields.io/github/v/release/tokuhirom/dbmate-s3-docker)](https://github.com/tokuhirom/dbmate-s3-docker/releases)
-[![Docker Image](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/tokuhirom/dbmate-s3-docker/pkgs/container/dbmate-s3-docker)
+[![GitHub release](https://img.shields.io/github/v/release/tokuhirom/dbmate-deployer)](https://github.com/tokuhirom/dbmate-deployer/releases)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/tokuhirom/dbmate-deployer/pkgs/container/dbmate-deployer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Database migration tool using [dbmate](https://github.com/amacneil/dbmate) with version-based migration management via S3-compatible storage.
@@ -51,7 +51,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Daemon as dbmate-s3-docker
+    participant Daemon as dbmate-deployer
     participant S3 as S3 Storage
     participant DB as PostgreSQL
 
@@ -92,7 +92,7 @@ Run the container as a long-running daemon that polls S3 periodically:
 
 ```bash
 docker run -d \
-  --name dbmate-s3-docker \
+  --name dbmate-deployer \
   --restart unless-stopped \
   -e DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=require" \
   -e S3_BUCKET="your-bucket" \
@@ -101,7 +101,7 @@ docker run -d \
   -e AWS_ACCESS_KEY_ID="your-access-key" \
   -e AWS_SECRET_ACCESS_KEY="your-secret-key" \
   -e POLL_INTERVAL="30s" \
-  ghcr.io/tokuhirom/dbmate-s3-docker:latest daemon
+  ghcr.io/tokuhirom/dbmate-deployer:latest daemon
 ```
 
 ### 2. Configure GitHub Actions
@@ -139,11 +139,11 @@ jobs:
           echo "MIGRATION_VERSION=$VERSION" >> $GITHUB_ENV
           echo "Generated version: $VERSION"
 
-      - name: Download dbmate-s3-docker
+      - name: Download dbmate-deployer
         run: |
-          curl -LO https://github.com/tokuhirom/dbmate-s3-docker/releases/latest/download/dbmate-s3-docker_linux_amd64.tar.gz
-          tar -xzf dbmate-s3-docker_linux_amd64.tar.gz
-          chmod +x dbmate-s3-docker
+          curl -LO https://github.com/tokuhirom/dbmate-deployer/releases/latest/download/dbmate-deployer_linux_amd64.tar.gz
+          tar -xzf dbmate-deployer_linux_amd64.tar.gz
+          chmod +x dbmate-deployer
 
       - name: Upload migrations to S3
         env:
@@ -153,7 +153,7 @@ jobs:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
           S3_PATH_PREFIX: ${{ secrets.S3_PATH_PREFIX }}
         run: |
-          ./dbmate-s3-docker push \
+          ./dbmate-deployer push \
             --migrations-dir=db/migrations \
             --version=${{ env.MIGRATION_VERSION }}
 
@@ -167,13 +167,13 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SLACK_INCOMING_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          ./dbmate-s3-docker wait-and-notify --migration-version=${{ env.MIGRATION_VERSION }}
+          ./dbmate-deployer wait-and-notify --migration-version=${{ env.MIGRATION_VERSION }}
 ```
 
 This workflow:
 - Triggers manually via `workflow_dispatch`
 - Generates a version timestamp (YYYYMMDDHHMMSS format)
-- Downloads the dbmate-s3-docker binary
+- Downloads the dbmate-deployer binary
 - Uses the `push` command to upload migrations with the generated version
 - Uses `wait-and-notify` command to wait for daemon to apply migrations
 - Sends Slack notification with migration result (if `SLACK_WEBHOOK_URL` secret is configured)
@@ -227,7 +227,7 @@ docker run -d \
   -e S3_BUCKET="your-bucket" \
   -e S3_PATH_PREFIX="migrations/" \
   -e POLL_INTERVAL="30s" \
-  ghcr.io/tokuhirom/dbmate-s3-docker:latest daemon
+  ghcr.io/tokuhirom/dbmate-deployer:latest daemon
 ```
 
 ### once
@@ -239,7 +239,7 @@ docker run --rm \
   -e DATABASE_URL="postgres://user:pass@host:5432/db" \
   -e S3_BUCKET="your-bucket" \
   -e S3_PATH_PREFIX="migrations/" \
-  ghcr.io/tokuhirom/dbmate-s3-docker:latest once
+  ghcr.io/tokuhirom/dbmate-deployer:latest once
 ```
 
 ### push
@@ -253,21 +253,21 @@ Uploads migration files to S3. This eliminates the need for AWS CLI in your CI/C
 VERSION=$(date -u +%Y%m%d%H%M%S)
 
 # Upload migrations
-./dbmate-s3-docker push \
+./dbmate-deployer push \
   --migrations-dir=db/migrations \
   --s3-bucket=your-bucket \
   --s3-path-prefix=migrations/ \
   --version=$VERSION
 
 # Use same version for wait-and-notify
-./dbmate-s3-docker wait-and-notify --migration-version=$VERSION
+./dbmate-deployer wait-and-notify --migration-version=$VERSION
 ```
 
 **Dry run (preview without uploading):**
 
 ```bash
 VERSION=$(date -u +%Y%m%d%H%M%S)
-./dbmate-s3-docker push \
+./dbmate-deployer push \
   --migrations-dir=db/migrations \
   --version=$VERSION \
   --dry-run
@@ -289,7 +289,7 @@ Waits for a specific migration version to complete and optionally sends a Slack 
 **Usage:**
 
 ```bash
-./dbmate-s3-docker wait-and-notify \
+./dbmate-deployer wait-and-notify \
   --migration-version=20260121010000 \
   --timeout=10m \
   --poll-interval=5s
@@ -298,7 +298,7 @@ Waits for a specific migration version to complete and optionally sends a Slack 
 **With Slack notification:**
 
 ```bash
-./dbmate-s3-docker wait-and-notify \
+./dbmate-deployer wait-and-notify \
   --migration-version=20260121010000 \
   --slack-incoming-webhook=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
@@ -453,7 +453,7 @@ docker run --rm \
   -e S3_PATH_PREFIX="migrations/" \
   -e METRICS_ADDR=":9090" \
   -p 9090:9090 \
-  dbmate-s3-docker:latest
+  dbmate-deployer:latest
 ```
 
 Then access metrics at `http://localhost:9090/metrics`.

@@ -5,9 +5,9 @@ before:
     - go mod tidy
 
 builds:
-  - id: dbmate-s3-docker
-    main: ./cmd/dbmate-s3-docker
-    binary: dbmate-s3-docker
+  - id: dbmate-deployer
+    main: ./cmd/dbmate-deployer
+    binary: dbmate-deployer
     env:
       - CGO_ENABLED=0
     goos:
@@ -55,6 +55,6 @@ changelog:
 release:
   github:
     owner: tokuhirom
-    name: dbmate-s3-docker
+    name: dbmate-deployer
   draft: false
   prerelease: auto
