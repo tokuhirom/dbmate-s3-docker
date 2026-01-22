@@ -167,7 +167,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SLACK_INCOMING_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          ./dbmate-s3-docker wait-and-notify --version=${{ env.MIGRATION_VERSION }}
+          ./dbmate-s3-docker wait-and-notify --migration-version=${{ env.MIGRATION_VERSION }}
 ```
 
 This workflow:
@@ -260,7 +260,7 @@ VERSION=$(date -u +%Y%m%d%H%M%S)
   --version=$VERSION
 
 # Use same version for wait-and-notify
-./dbmate-s3-docker wait-and-notify --version=$VERSION
+./dbmate-s3-docker wait-and-notify --migration-version=$VERSION
 ```
 
 **Dry run (preview without uploading):**
@@ -290,7 +290,7 @@ Waits for a specific migration version to complete and optionally sends a Slack 
 
 ```bash
 ./dbmate-s3-docker wait-and-notify \
-  --version=20260121010000 \
+  --migration-version=20260121010000 \
   --timeout=10m \
   --poll-interval=5s
 ```
@@ -299,13 +299,13 @@ Waits for a specific migration version to complete and optionally sends a Slack 
 
 ```bash
 ./dbmate-s3-docker wait-and-notify \
-  --version=20260121010000 \
+  --migration-version=20260121010000 \
   --slack-incoming-webhook=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
 
 **Flags:**
 
-- `--version` (required): Migration version to wait for (YYYYMMDDHHMMSS format)
+- `--migration-version, -v` (required): Migration version to wait for (YYYYMMDDHHMMSS format)
 - `--slack-incoming-webhook`: Slack incoming webhook URL (optional, also via `SLACK_INCOMING_WEBHOOK` env var)
 - `--timeout`: Maximum wait time (default: `10m`)
 - `--poll-interval`: Polling interval for checking result.json (default: `5s`)
