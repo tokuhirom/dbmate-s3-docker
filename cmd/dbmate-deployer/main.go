@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/tokuhirom/dbmate-deployer/internal/daemon"
 	"github.com/tokuhirom/dbmate-deployer/internal/once"
 	"github.com/tokuhirom/dbmate-deployer/internal/push"
 	"github.com/tokuhirom/dbmate-deployer/internal/version"
 	"github.com/tokuhirom/dbmate-deployer/internal/wait"
+	"github.com/tokuhirom/dbmate-deployer/internal/watch"
 )
 
 var (
@@ -23,15 +23,15 @@ type CLI struct {
 	S3EndpointURL string `help:"S3 endpoint URL (for S3-compatible services)" env:"S3_ENDPOINT_URL" name:"s3-endpoint-url"`
 	MetricsAddr   string `help:"Prometheus metrics endpoint address (e.g. ':9090')" env:"METRICS_ADDR"`
 
-	Daemon        DaemonCmd        `cmd:"" help:"Run as daemon (default)" default:"1"`
+	Watch         WatchCmd         `cmd:"" help:"Watch S3 for new migrations and apply them"`
 	Once          OnceCmd          `cmd:"" help:"Run once and exit"`
 	Push          PushCmd          `cmd:"" help:"Upload migrations to S3"`
 	WaitAndNotify WaitAndNotifyCmd `cmd:"" help:"Wait for migration result and optionally notify Slack"`
 	Version       VersionCmd       `cmd:"" help:"Show version information"`
 }
 
-// DaemonCmd runs as a daemon with periodic polling
-type DaemonCmd struct {
+// WatchCmd watches S3 for new migrations and applies them
+type WatchCmd struct {
 	DatabaseURL  string        `help:"PostgreSQL connection string" env:"DATABASE_URL" required:""`
 	S3Bucket     string        `help:"S3 bucket name" env:"S3_BUCKET" required:"" name:"s3-bucket"`
 	S3PathPrefix string        `help:"S3 path prefix (e.g. 'migrations/')" env:"S3_PATH_PREFIX" required:"" name:"s3-path-prefix"`
@@ -70,14 +70,14 @@ type VersionCmd struct {
 }
 
 // Run() forwarders for each command (required by kong)
-func (c *DaemonCmd) Run(cli *CLI) error {
-	cmd := &daemon.Cmd{
+func (c *WatchCmd) Run(cli *CLI) error {
+	cmd := &watch.Cmd{
 		DatabaseURL:  c.DatabaseURL,
 		S3Bucket:     c.S3Bucket,
 		S3PathPrefix: c.S3PathPrefix,
 		PollInterval: c.PollInterval,
 	}
-	return daemon.Execute(cmd, cli.S3EndpointURL, cli.MetricsAddr)
+	return watch.Execute(cmd, cli.S3EndpointURL, cli.MetricsAddr)
 }
 
 func (c *OnceCmd) Run(cli *CLI) error {
