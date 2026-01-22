@@ -47,48 +47,48 @@ sequenceDiagram
     end
 ```
 
-### Execution Phase (Daemon Container)
+### Execution Phase (Watch Mode)
 
 ```mermaid
 sequenceDiagram
-    participant Daemon as dbmate-deployer
+    participant Watcher as dbmate-deployer
     participant S3 as S3 Storage
     participant DB as PostgreSQL
 
-    Note over Daemon: Daemon mode (ticker-based polling)
+    Note over Watcher: Watch mode (ticker-based polling)
 
     loop Every POLL_INTERVAL (default: 30s)
-        Daemon->>S3: List versions
-        S3-->>Daemon: Return version directories
-        Daemon->>S3: Check result.json for newest version (HeadObject)
+        Watcher->>S3: List versions
+        S3-->>Watcher: Return version directories
+        Watcher->>S3: Check result.json for newest version (HeadObject)
 
         alt Newest version unapplied
-            S3-->>Daemon: Found unapplied version: 20260121010000
-            Daemon->>S3: Download migrations/*.sql
-            S3-->>Daemon: Return migration files
-            Daemon->>DB: Apply migrations (dbmate up)
-            DB-->>Daemon: Success
-            Daemon->>S3: Upload result.json
+            S3-->>Watcher: Found unapplied version: 20260121010000
+            Watcher->>S3: Download migrations/*.sql
+            S3-->>Watcher: Return migration files
+            Watcher->>DB: Apply migrations (dbmate up)
+            DB-->>Watcher: Success
+            Watcher->>S3: Upload result.json
             Note over S3: Version marked as applied
         else Newest version already applied
-            S3-->>Daemon: Newest version already applied
-            Note over Daemon: Wait for next tick
+            S3-->>Watcher: Newest version already applied
+            Note over Watcher: Wait for next tick
         end
     end
 ```
 
 **Key Points:**
 - **GitHub Actions**: Uploads new migration versions to S3 (triggered by workflow_dispatch)
-- **Daemon Container**: Polls S3 periodically (ticker-based), applies the newest version if unapplied
+- **Watch Mode**: Polls S3 periodically (ticker-based), applies the newest version if unapplied
 - **S3 Storage**: Central repository for versioned migrations and execution results
 - **PostgreSQL**: Target database where migrations are applied
 - **Version Tracking**: `result.json` existence indicates applied version (checked via HeadObject)
 
 ## Setup
 
-### 1. Deploy Daemon Container
+### 1. Deploy with Watch Mode
 
-Run the container as a long-running daemon that polls S3 periodically:
+Run the container in watch mode to poll S3 periodically for new migrations:
 
 ```bash
 docker run -d \
@@ -101,7 +101,7 @@ docker run -d \
   -e AWS_ACCESS_KEY_ID="your-access-key" \
   -e AWS_SECRET_ACCESS_KEY="your-secret-key" \
   -e POLL_INTERVAL="30s" \
-  ghcr.io/tokuhirom/dbmate-deployer:latest daemon
+  ghcr.io/tokuhirom/dbmate-deployer:latest watch
 ```
 
 ### 2. Configure GitHub Actions
@@ -217,9 +217,9 @@ s3://your-bucket/${S3_PATH_PREFIX}/
 
 ## Commands
 
-### daemon (default)
+### watch
 
-Runs as a long-running daemon that polls S3 periodically for new migration versions.
+Watches S3 for new migrations and applies them. Runs continuously with periodic polling.
 
 ```bash
 docker run -d \
@@ -227,7 +227,7 @@ docker run -d \
   -e S3_BUCKET="your-bucket" \
   -e S3_PATH_PREFIX="migrations/" \
   -e POLL_INTERVAL="30s" \
-  ghcr.io/tokuhirom/dbmate-deployer:latest daemon
+  ghcr.io/tokuhirom/dbmate-deployer:latest watch
 ```
 
 ### once
@@ -343,7 +343,7 @@ See the [workflow example above](#22-workflow-setup) for usage in CI/CD pipeline
 - `AWS_ACCESS_KEY_ID`: AWS access key
 - `AWS_SECRET_ACCESS_KEY`: AWS secret key
 - `AWS_DEFAULT_REGION`: AWS region (default: `us-east-1`)
-- `POLL_INTERVAL`: Polling interval for daemon mode (default: `30s`). Examples: `10s`, `1m`, `5m`
+- `POLL_INTERVAL`: Polling interval for watch mode (default: `30s`). Examples: `10s`, `1m`, `5m`
 - `METRICS_ADDR`: Prometheus metrics endpoint address (e.g., `:9090`). Metrics disabled if not set
 - `SLACK_INCOMING_WEBHOOK`: Slack incoming webhook URL for `wait-and-notify` command (optional)
 

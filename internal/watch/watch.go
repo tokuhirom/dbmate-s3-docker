@@ -1,4 +1,4 @@
-package daemon
+package watch
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/tokuhirom/dbmate-deployer/internal/shared"
 )
 
-// Cmd runs as a daemon with periodic polling
+// Cmd watches S3 for new migrations and applies them
 type Cmd struct {
 	DatabaseURL  string        `help:"PostgreSQL connection string" env:"DATABASE_URL" required:""`
 	S3Bucket     string        `help:"S3 bucket name" env:"S3_BUCKET" required:"" name:"s3-bucket"`
@@ -19,7 +19,7 @@ type Cmd struct {
 	PollInterval time.Duration `help:"Polling interval for checking new versions" env:"POLL_INTERVAL" default:"30s"`
 }
 
-// Execute runs the daemon with periodic polling
+// Execute runs the watcher with periodic polling
 func Execute(c *Cmd, s3EndpointURL, metricsAddr string) error {
 	ctx := context.Background()
 
@@ -40,7 +40,7 @@ func Execute(c *Cmd, s3EndpointURL, metricsAddr string) error {
 		return fmt.Errorf("failed to create S3 client: %w", err)
 	}
 
-	slog.Info("Starting database migration daemon", "poll_interval", c.PollInterval)
+	slog.Info("Starting migration watcher", "poll_interval", c.PollInterval)
 
 	// Create ticker for periodic polling
 	ticker := time.NewTicker(c.PollInterval)
