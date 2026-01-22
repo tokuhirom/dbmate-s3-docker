@@ -45,17 +45,17 @@ make lint           # Run golangci-lint
 make clean          # Clean build artifacts
 ```
 
-## Commit Messages
+## Language Policy
 
-- **All commit messages must be written in English**
-- Use conventional commit format when appropriate (e.g., `feat:`, `fix:`, `docs:`, `refactor:`)
-- Keep commit messages concise and descriptive
+All project artifacts must be written in **English**:
+
+- **Commit messages**: Use conventional commit format (e.g., `feat:`, `fix:`, `docs:`, `refactor:`)
+- **Pull request titles and descriptions**: Clear, concise English
+- **Documentation**: README.md, code comments, and all user-facing docs
+- **Code**: Variable names, function names, comments
 
 ## Documentation
 
-- README.md should be written in English for broader accessibility
-- Code comments should be in English
-- User-facing documentation should be in English
 - Do not include Kubernetes examples in README - keep deployment examples Docker-focused
 - Focus on simplicity and common use cases
 
