@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "version": "20240101000000",
+  "error": "Migration failed: syntax error at or near INVALID",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
