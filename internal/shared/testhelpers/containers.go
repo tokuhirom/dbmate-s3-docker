@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,7 +228,7 @@ func (e *TestEnvironment) UploadMigration(ctx context.Context, version, sqlConte
 	_, err := e.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),
-		Body:   io.NopCloser(bytes.NewBufferString(sqlContent)),
+		Body:   bytes.NewReader([]byte(sqlContent)),
 	})
 	require.NoError(e.t, err, "Failed to upload migration to S3")
 }
@@ -270,7 +269,7 @@ func (e *TestEnvironment) UploadResult(ctx context.Context, version, resultJSON 
 	_, err := e.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),
-		Body:   io.NopCloser(bytes.NewBufferString(resultJSON)),
+		Body:   bytes.NewReader([]byte(resultJSON)),
 	})
 	require.NoError(e.t, err, "Failed to upload result to S3")
 }

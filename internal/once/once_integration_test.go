@@ -4,6 +4,7 @@ package once
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tokuhirom/dbmate-s3-docker/internal/shared/testhelpers"
 )
+
+func init() {
+	// Set AWS credentials for LocalStack (used by Execute which creates its own S3 client)
+	os.Setenv("AWS_ACCESS_KEY_ID", "test")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	os.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+}
 
 func TestOnce_Execute_SuccessfulMigration(t *testing.T) {
 	if testing.Short() {
