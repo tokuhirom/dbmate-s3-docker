@@ -50,6 +50,16 @@ func TestOnce_Execute_SuccessfulMigration(t *testing.T) {
 	assert.Equal(t, "success", result["status"])
 	assert.Equal(t, "20240101000000", result["version"])
 
+	// Verify log contains downloaded file names
+	log, ok := result["log"].(string)
+	require.True(t, ok, "log field should be a string")
+	assert.Contains(t, log, "20240101000000_create_test_table.sql", "log should contain migration file name")
+	assert.Contains(t, log, "20240101120000_add_email_column.sql", "log should contain migration file name")
+	assert.Contains(t, log, "20240102000000_create_products_table.sql", "log should contain migration file name")
+
+	// Verify log contains dbmate verbose output (Applying: ...)
+	assert.Contains(t, log, "Applying:", "log should contain dbmate verbose output")
+
 	// Verify table was created
 	env.AssertTableExists(t, "test_table")
 }
