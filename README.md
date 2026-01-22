@@ -383,6 +383,8 @@ A version is considered applied if `result.json` exists in its directory. The to
 
 ## Local Testing
 
+### Docker Compose Tests
+
 This repository includes a test environment with docker-compose for development:
 
 ```bash
@@ -400,6 +402,53 @@ make clean
 ```
 
 The test environment uses LocalStack for S3 and PostgreSQL for the database.
+
+### Go Test Suite
+
+The project includes a comprehensive Go test suite with unit and integration tests.
+
+**Run unit tests (fast, no Docker required):**
+
+```bash
+# Run all unit tests
+go test ./internal/...
+
+# Run with coverage
+go test -cover ./internal/...
+
+# Run with race detection
+go test -race ./internal/...
+
+# Run specific package tests
+go test -v ./internal/shared
+```
+
+**Run integration tests (requires Docker for testcontainers):**
+
+```bash
+# Run all integration tests
+go test -tags=integration -v ./internal/...
+
+# Run specific integration tests
+go test -tags=integration -v ./internal/once
+
+# Skip in short mode
+go test -short ./internal/...
+```
+
+**Test organization:**
+- **Unit tests**: Fast tests using mocks, no external dependencies
+  - Migration validation tests
+  - Slack notification tests (using httptest)
+  - S3 operations tests (using mock S3 client)
+- **Integration tests**: End-to-end tests using testcontainers
+  - Requires Docker for running PostgreSQL and LocalStack containers
+  - Tagged with `//go:build integration`
+  - Automatically manage container lifecycle
+
+**Continuous Integration:**
+
+The project runs both unit and integration tests automatically on every push and pull request via GitHub Actions. See `.github/workflows/go-tests.yml` for the CI configuration.
 
 ## Prometheus Metrics
 
