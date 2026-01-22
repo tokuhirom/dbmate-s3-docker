@@ -4,6 +4,7 @@ package once
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tokuhirom/dbmate-s3-docker/internal/shared/testhelpers"
 )
+
+func init() {
+	// Set AWS credentials for LocalStack (used by Execute which creates its own S3 client)
+	os.Setenv("AWS_ACCESS_KEY_ID", "test")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	os.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+}
 
 func TestOnce_Execute_SuccessfulMigration(t *testing.T) {
 	if testing.Short() {
@@ -20,9 +28,9 @@ func TestOnce_Execute_SuccessfulMigration(t *testing.T) {
 	ctx := context.Background()
 	env := testhelpers.SetupTestEnvironment(ctx, t)
 
-	// Upload test migrations to S3
+	// Upload test migrations to S3 under version "20240101000000"
 	migrationsDir := filepath.Join("..", "testdata", "migrations", "valid")
-	env.UploadMigrationsFromDir(ctx, migrationsDir)
+	env.UploadMigrationsFromDir(ctx, "20240101000000", migrationsDir)
 
 	// Execute once command
 	cmd := &Cmd{
@@ -75,9 +83,9 @@ func TestOnce_Execute_AlreadyAppliedVersion(t *testing.T) {
 	ctx := context.Background()
 	env := testhelpers.SetupTestEnvironment(ctx, t)
 
-	// Upload test migrations
+	// Upload test migrations under version "20240101000000"
 	migrationsDir := filepath.Join("..", "testdata", "migrations", "valid")
-	env.UploadMigrationsFromDir(ctx, migrationsDir)
+	env.UploadMigrationsFromDir(ctx, "20240101000000", migrationsDir)
 
 	// Upload result to mark version as applied
 	env.UploadResult(ctx, "20240101000000", testhelpers.SuccessResult("20240101000000", "Already applied"))

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -221,15 +220,16 @@ func (e *TestEnvironment) ClearDatabase(ctx context.Context) {
 	}
 }
 
-// UploadMigration uploads a single migration file to S3
-func (e *TestEnvironment) UploadMigration(ctx context.Context, version, sqlContent string) {
+// UploadMigration uploads a single migration file to S3 with the correct path structure
+// Path: migrations/<version>/migrations/<filename>.sql
+func (e *TestEnvironment) UploadMigration(ctx context.Context, version, filename, sqlContent string) {
 	e.t.Helper()
 
-	key := fmt.Sprintf("migrations/%s.sql", version)
+	key := fmt.Sprintf("migrations/%s/migrations/%s", version, filename)
 	_, err := e.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),
-		Body:   io.NopCloser(bytes.NewBufferString(sqlContent)),
+		Body:   bytes.NewReader([]byte(sqlContent)),
 	})
 	require.NoError(e.t, err, "Failed to upload migration to S3")
 }
@@ -241,11 +241,12 @@ func (e *TestEnvironment) UploadMigrationFile(ctx context.Context, version, file
 	content, err := os.ReadFile(filePath)
 	require.NoError(e.t, err, "Failed to read migration file")
 
-	e.UploadMigration(ctx, version, string(content))
+	filename := filepath.Base(filePath)
+	e.UploadMigration(ctx, version, filename, string(content))
 }
 
-// UploadMigrationsFromDir uploads all migration files from a directory to S3
-func (e *TestEnvironment) UploadMigrationsFromDir(ctx context.Context, dirPath string) {
+// UploadMigrationsFromDir uploads all migration files from a directory to S3 under a specific version
+func (e *TestEnvironment) UploadMigrationsFromDir(ctx context.Context, version, dirPath string) {
 	e.t.Helper()
 
 	files, err := os.ReadDir(dirPath)
@@ -256,30 +257,31 @@ func (e *TestEnvironment) UploadMigrationsFromDir(ctx context.Context, dirPath s
 			continue
 		}
 
-		version := file.Name()[:len(file.Name())-4] // Remove .sql extension
 		fullPath := filepath.Join(dirPath, file.Name())
 		e.UploadMigrationFile(ctx, version, fullPath)
 	}
 }
 
 // UploadResult uploads a result.json file to S3
+// Path: migrations/<version>/result.json
 func (e *TestEnvironment) UploadResult(ctx context.Context, version, resultJSON string) {
 	e.t.Helper()
 
-	key := fmt.Sprintf("results/%s/result.json", version)
+	key := fmt.Sprintf("migrations/%s/result.json", version)
 	_, err := e.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),
-		Body:   io.NopCloser(bytes.NewBufferString(resultJSON)),
+		Body:   bytes.NewReader([]byte(resultJSON)),
 	})
 	require.NoError(e.t, err, "Failed to upload result to S3")
 }
 
 // GetResult retrieves and parses a result.json from S3
+// Path: migrations/<version>/result.json
 func (e *TestEnvironment) GetResult(ctx context.Context, version string) map[string]interface{} {
 	e.t.Helper()
 
-	key := fmt.Sprintf("results/%s/result.json", version)
+	key := fmt.Sprintf("migrations/%s/result.json", version)
 	output, err := e.S3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),
@@ -295,10 +297,11 @@ func (e *TestEnvironment) GetResult(ctx context.Context, version string) map[str
 }
 
 // ResultExists checks if a result file exists in S3
+// Path: migrations/<version>/result.json
 func (e *TestEnvironment) ResultExists(ctx context.Context, version string) bool {
 	e.t.Helper()
 
-	key := fmt.Sprintf("results/%s/result.json", version)
+	key := fmt.Sprintf("migrations/%s/result.json", version)
 	_, err := e.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(e.S3Bucket),
 		Key:    aws.String(key),

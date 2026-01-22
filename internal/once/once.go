@@ -43,8 +43,13 @@ func Execute(c *Cmd, s3EndpointURL, metricsAddr string) error {
 	// Find unapplied version
 	version, err := shared.FindUnappliedVersion(ctx, s3Client, c.S3Bucket, s3Prefix)
 	if err != nil {
-		if err.Error() == "no unapplied versions found" {
+		errMsg := err.Error()
+		if errMsg == "no unapplied versions found" {
 			slog.Info("All versions are already applied")
+			return nil
+		}
+		if errMsg == "no versions found" {
+			slog.Info("No migration versions found in S3")
 			return nil
 		}
 		return fmt.Errorf("failed to find unapplied version: %w", err)

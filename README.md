@@ -383,57 +383,38 @@ A version is considered applied if `result.json` exists in its directory. The to
 
 ## Local Testing
 
-### Docker Compose Tests
-
-This repository includes a test environment with docker-compose for development:
-
-```bash
-# Build locally
-docker build -t dbmate-s3-docker:dev .
-
-# Run test
-make test
-
-# Verify database
-make verify
-
-# Cleanup
-make clean
-```
-
-The test environment uses LocalStack for S3 and PostgreSQL for the database.
-
 ### Go Test Suite
 
 The project includes a comprehensive Go test suite with unit and integration tests.
 
-**Run unit tests (fast, no Docker required):**
+**Run all tests:**
 
 ```bash
-# Run all unit tests
-go test ./internal/...
+# Run all tests (unit + integration)
+make test
 
-# Run with coverage
-go test -cover ./internal/...
-
-# Run with race detection
-go test -race ./internal/...
-
-# Run specific package tests
-go test -v ./internal/shared
+# Or directly with go test
+go test -v ./...
 ```
 
-**Run integration tests (requires Docker for testcontainers):**
+**Run unit tests only (fast, no Docker required):**
 
 ```bash
-# Run all integration tests
-go test -tags=integration -v ./internal/...
+# Run unit tests only (skips integration tests)
+make test-unit
 
-# Run specific integration tests
-go test -tags=integration -v ./internal/once
+# Or with go test -short
+go test -v -short ./...
+```
 
-# Skip in short mode
-go test -short ./internal/...
+**Run integration tests only (requires Docker for testcontainers):**
+
+```bash
+# Run integration tests
+make test-integration
+
+# Or with go test
+go test -v -run Integration ./...
 ```
 
 **Test organization:**
@@ -441,10 +422,10 @@ go test -short ./internal/...
   - Migration validation tests
   - Slack notification tests (using httptest)
   - S3 operations tests (using mock S3 client)
-- **Integration tests**: End-to-end tests using testcontainers
+- **Integration tests**: End-to-end tests using [testcontainers-go](https://golang.testcontainers.org/)
   - Requires Docker for running PostgreSQL and LocalStack containers
-  - Tagged with `//go:build integration`
-  - Automatically manage container lifecycle
+  - Containers are automatically started and stopped during tests
+  - Tests are named with `Integration` suffix (e.g., `TestOnceIntegration`)
 
 **Continuous Integration:**
 
