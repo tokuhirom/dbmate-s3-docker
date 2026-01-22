@@ -18,6 +18,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// S3API defines the interface for S3 operations used in this application
+// This interface enables mocking for unit tests
+type S3API interface {
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+}
+
 // CreateS3Client creates an S3 client with optional custom endpoint
 func CreateS3Client(ctx context.Context, endpointURL string) (*s3.Client, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
@@ -38,7 +47,7 @@ func CreateS3Client(ctx context.Context, endpointURL string) (*s3.Client, error)
 }
 
 // FindUnappliedVersion finds the newest unapplied migration version
-func FindUnappliedVersion(ctx context.Context, client *s3.Client, bucket, prefix string) (string, error) {
+func FindUnappliedVersion(ctx context.Context, client S3API, bucket, prefix string) (string, error) {
 	slog.Info("Listing versions from S3", "bucket", bucket, "prefix", prefix)
 
 	// List all objects with the prefix
@@ -91,7 +100,7 @@ func FindUnappliedVersion(ctx context.Context, client *s3.Client, bucket, prefix
 }
 
 // CheckResultExists checks if result.json exists for a version
-func CheckResultExists(ctx context.Context, client *s3.Client, bucket, prefix, version string) (bool, error) {
+func CheckResultExists(ctx context.Context, client S3API, bucket, prefix, version string) (bool, error) {
 	key := path.Join(prefix, version, "result.json")
 
 	_, err := client.HeadObject(ctx, &s3.HeadObjectInput{
@@ -110,7 +119,7 @@ func CheckResultExists(ctx context.Context, client *s3.Client, bucket, prefix, v
 }
 
 // DownloadMigrations downloads migration files from S3 to a local directory
-func DownloadMigrations(ctx context.Context, client *s3.Client, bucket, prefix, localDir string) error {
+func DownloadMigrations(ctx context.Context, client S3API, bucket, prefix, localDir string) error {
 	// List all migration files
 	resp, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
@@ -164,7 +173,7 @@ func DownloadMigrations(ctx context.Context, client *s3.Client, bucket, prefix, 
 }
 
 // UploadMigrations uploads migration files from a local directory to S3
-func UploadMigrations(ctx context.Context, client *s3.Client, bucket, prefix, version, localDir string) error {
+func UploadMigrations(ctx context.Context, client S3API, bucket, prefix, version, localDir string) error {
 	// Read directory entries
 	entries, err := os.ReadDir(localDir)
 	if err != nil {
@@ -218,7 +227,7 @@ func UploadMigrations(ctx context.Context, client *s3.Client, bucket, prefix, ve
 }
 
 // UploadResult uploads the migration result as JSON to S3
-func UploadResult(ctx context.Context, client *s3.Client, bucket, prefix, version string, result *Result) error {
+func UploadResult(ctx context.Context, client S3API, bucket, prefix, version string, result *Result) error {
 	key := path.Join(prefix, version, "result.json")
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
@@ -241,7 +250,7 @@ func UploadResult(ctx context.Context, client *s3.Client, bucket, prefix, versio
 }
 
 // downloadResult downloads and parses the result.json from S3
-func downloadResult(ctx context.Context, client *s3.Client, bucket, prefix, version string) (*Result, error) {
+func downloadResult(ctx context.Context, client S3API, bucket, prefix, version string) (*Result, error) {
 	key := path.Join(prefix, version, "result.json")
 
 	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
@@ -268,7 +277,7 @@ func downloadResult(ctx context.Context, client *s3.Client, bucket, prefix, vers
 }
 
 // downloadResultWithRetry downloads result.json with exponential backoff retry
-func downloadResultWithRetry(ctx context.Context, client *s3.Client, bucket, prefix, version string) (*Result, error) {
+func downloadResultWithRetry(ctx context.Context, client S3API, bucket, prefix, version string) (*Result, error) {
 	backoff := time.Second
 	maxRetries := 3
 
@@ -298,7 +307,7 @@ func downloadResultWithRetry(ctx context.Context, client *s3.Client, bucket, pre
 }
 
 // WaitForResult polls S3 for result.json until it appears or timeout occurs
-func WaitForResult(ctx context.Context, client *s3.Client, bucket, prefix, version string,
+func WaitForResult(ctx context.Context, client S3API, bucket, prefix, version string,
 	pollInterval, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
