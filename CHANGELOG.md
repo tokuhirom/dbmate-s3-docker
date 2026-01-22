@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.0.7](https://github.com/tokuhirom/dbmate-deployer/compare/v0.0.6...v0.0.7) - 2026-01-22
+- docs: Fix wait-and-notify option name from --version to --migration-version by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/26
+- refactor: Rename project from dbmate-s3-docker to dbmate-deployer by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/28
+- refactor: Rename daemon subcommand to watch by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/29
+
 ## [v0.0.6](https://github.com/tokuhirom/dbmate-s3-docker/compare/v0.0.5...v0.0.6) - 2026-01-22
 - feat: Add comprehensive Go test suite with testcontainers by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/22
 - refactor: Remove docker compose based tests in favor of Go tests by @tokuhirom in https://github.com/tokuhirom/dbmate-s3-docker/pull/25
