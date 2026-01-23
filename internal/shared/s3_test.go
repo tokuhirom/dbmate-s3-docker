@@ -164,6 +164,60 @@ func TestUploadResult(t *testing.T) {
 	assert.Contains(t, content, `"version": "20240101000000"`)
 }
 
+func TestUploadPushInfo(t *testing.T) {
+	mock := testhelpers.NewMockS3Client()
+
+	pushInfo := &PushInfo{
+		PushedAt: "2024-01-01T00:00:00Z",
+		Source: PushSource{
+			Type:       "github_actions",
+			Repository: "tokuhirom/dbmate-deployer",
+			Workflow:   "Deploy Migrations",
+			RunID:      "12345678",
+			RunURL:     "https://github.com/tokuhirom/dbmate-deployer/actions/runs/12345678",
+			Actor:      "tokuhirom",
+			SHA:        "abc123",
+			Ref:        "refs/heads/main",
+		},
+	}
+
+	err := UploadPushInfo(context.Background(), mock, "test-bucket", "migrations/", "20240101000000", pushInfo)
+	require.NoError(t, err)
+
+	// Verify the push info was uploaded
+	exists := mock.HasObject("test-bucket", "migrations/20240101000000/push-info.json")
+	assert.True(t, exists)
+
+	// Verify the content
+	content, found := mock.GetObjectContent("test-bucket", "migrations/20240101000000/push-info.json")
+	require.True(t, found)
+	assert.Contains(t, content, `"type": "github_actions"`)
+	assert.Contains(t, content, `"repository": "tokuhirom/dbmate-deployer"`)
+	assert.Contains(t, content, `"workflow": "Deploy Migrations"`)
+	assert.Contains(t, content, `"run_url": "https://github.com/tokuhirom/dbmate-deployer/actions/runs/12345678"`)
+}
+
+func TestUploadPushInfo_Local(t *testing.T) {
+	mock := testhelpers.NewMockS3Client()
+
+	pushInfo := &PushInfo{
+		PushedAt: "2024-01-01T00:00:00Z",
+		Source: PushSource{
+			Type: "local",
+		},
+	}
+
+	err := UploadPushInfo(context.Background(), mock, "test-bucket", "migrations/", "20240101000000", pushInfo)
+	require.NoError(t, err)
+
+	// Verify the content
+	content, found := mock.GetObjectContent("test-bucket", "migrations/20240101000000/push-info.json")
+	require.True(t, found)
+	assert.Contains(t, content, `"type": "local"`)
+	// Local should not have repository or workflow
+	assert.NotContains(t, content, `"repository"`)
+}
+
 func TestDownloadMigrations(t *testing.T) {
 	mock := testhelpers.NewMockS3Client()
 
