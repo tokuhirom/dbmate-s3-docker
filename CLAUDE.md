@@ -80,13 +80,35 @@ make test-unit
 make test-integration
 ```
 
+### Running Integration Tests with Colima
+
+If you're using [Colima](https://github.com/abiosoft/colima) as your Docker runtime on macOS, you need to set the following environment variables:
+
+```bash
+# Set Docker host for Colima
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+
+# Disable Ryuk (testcontainers cleanup container) - it has issues with Colima
+export TESTCONTAINERS_RYUK_DISABLED=true
+
+# Run integration tests
+make test-integration
+```
+
+Or as a one-liner:
+
+```bash
+DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock" TESTCONTAINERS_RYUK_DISABLED=true make test-integration
+```
+
 ### Test Organization
 
 - **Unit tests**: Fast tests using mocks, no external dependencies
   - `internal/shared/*_test.go` - S3 operations, Slack notifications, migration validation
 - **Integration tests**: End-to-end tests using [testcontainers-go](https://golang.testcontainers.org/)
   - `internal/once/once_integration_test.go` - Full migration workflow test
-  - Requires Docker for running PostgreSQL and LocalStack containers
+  - Requires Docker for running PostgreSQL container
+  - S3 is mocked using [gofakes3](https://github.com/johannesboyne/gofakes3) (in-process, no container needed)
   - Tests are named with `Integration` suffix (e.g., `TestOnceIntegration`)
 
 ### Adding New Tests

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,9 +16,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/localstack"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
@@ -27,7 +29,7 @@ import (
 // TestEnvironment holds all test infrastructure for integration tests
 type TestEnvironment struct {
 	PostgresContainer testcontainers.Container
-	LocalStackContainer testcontainers.Container
+	FakeS3Server      *httptest.Server
 	DatabaseURL       string
 	S3Client          *s3.Client
 	S3Bucket          string
@@ -58,23 +60,16 @@ func SetupPostgresContainer(ctx context.Context, t *testing.T) (testcontainers.C
 	return postgresContainer, connStr
 }
 
-// SetupLocalStackContainer starts a LocalStack container for S3 testing
-func SetupLocalStackContainer(ctx context.Context, t *testing.T) (testcontainers.Container, string, *s3.Client) {
+// SetupFakeS3 starts an in-memory fake S3 server for testing
+func SetupFakeS3(ctx context.Context, t *testing.T) (*httptest.Server, string, *s3.Client) {
 	t.Helper()
 
-	localstackContainer, err := localstack.Run(ctx,
-		"localstack/localstack:3.0",
-		testcontainers.WithEnv(map[string]string{
-			"SERVICES": "s3",
-		}),
-	)
-	require.NoError(t, err, "Failed to start LocalStack container")
+	// Create in-memory S3 backend
+	backend := s3mem.New()
+	faker := gofakes3.New(backend)
+	ts := httptest.NewServer(faker.Server())
 
-	// Get the mapped endpoint
-	mappedEndpoint, err := localstackContainer.PortEndpoint(ctx, "4566", "http")
-	require.NoError(t, err, "Failed to get LocalStack endpoint")
-
-	// Create S3 client configured for LocalStack
+	// Create S3 client configured for fake S3
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion("us-east-1"),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
@@ -87,21 +82,21 @@ func SetupLocalStackContainer(ctx context.Context, t *testing.T) (testcontainers
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.UsePathStyle = true
-		o.BaseEndpoint = aws.String(mappedEndpoint)
+		o.BaseEndpoint = aws.String(ts.URL)
 	})
 
-	return localstackContainer, mappedEndpoint, s3Client
+	return ts, ts.URL, s3Client
 }
 
-// SetupTestEnvironment creates a complete test environment with PostgreSQL and LocalStack
+// SetupTestEnvironment creates a complete test environment with PostgreSQL and fake S3
 func SetupTestEnvironment(ctx context.Context, t *testing.T) *TestEnvironment {
 	t.Helper()
 
 	// Start PostgreSQL
 	postgresContainer, dbURL := SetupPostgresContainer(ctx, t)
 
-	// Start LocalStack
-	localstackContainer, endpoint, s3Client := SetupLocalStackContainer(ctx, t)
+	// Start fake S3 server
+	fakeS3Server, endpoint, s3Client := SetupFakeS3(ctx, t)
 
 	// Open database connection
 	db, err := sql.Open("postgres", dbURL)
@@ -119,14 +114,14 @@ func SetupTestEnvironment(ctx context.Context, t *testing.T) *TestEnvironment {
 	require.NoError(t, err, "Failed to create test S3 bucket")
 
 	env := &TestEnvironment{
-		PostgresContainer:   postgresContainer,
-		LocalStackContainer: localstackContainer,
-		DatabaseURL:         dbURL,
-		S3Client:            s3Client,
-		S3Bucket:            bucketName,
-		S3EndpointURL:       endpoint,
-		DB:                  db,
-		t:                   t,
+		PostgresContainer: postgresContainer,
+		FakeS3Server:      fakeS3Server,
+		DatabaseURL:       dbURL,
+		S3Client:          s3Client,
+		S3Bucket:          bucketName,
+		S3EndpointURL:     endpoint,
+		DB:                db,
+		t:                 t,
 	}
 
 	// Register cleanup
@@ -145,8 +140,8 @@ func (e *TestEnvironment) Cleanup(ctx context.Context) {
 	if e.PostgresContainer != nil {
 		_ = e.PostgresContainer.Terminate(ctx)
 	}
-	if e.LocalStackContainer != nil {
-		_ = e.LocalStackContainer.Terminate(ctx)
+	if e.FakeS3Server != nil {
+		e.FakeS3Server.Close()
 	}
 }
 
