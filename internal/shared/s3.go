@@ -229,6 +229,29 @@ func UploadMigrations(ctx context.Context, client S3API, bucket, prefix, version
 	return nil
 }
 
+// UploadPushInfo uploads push metadata as JSON to S3
+func UploadPushInfo(ctx context.Context, client S3API, bucket, prefix, version string, info *PushInfo) error {
+	key := path.Join(prefix, version, "push-info.json")
+
+	jsonData, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal push info: %w", err)
+	}
+
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(jsonData),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upload push info: %w", err)
+	}
+
+	slog.Info("Push info uploaded", "key", key)
+	return nil
+}
+
 // UploadResult uploads the migration result as JSON to S3
 func UploadResult(ctx context.Context, client S3API, bucket, prefix, version string, result *Result) error {
 	key := path.Join(prefix, version, "result.json")

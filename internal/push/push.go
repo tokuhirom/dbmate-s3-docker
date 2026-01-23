@@ -19,6 +19,7 @@ type Cmd struct {
 	Version       string `help:"Version timestamp (YYYYMMDDHHMMSS)" required:"" name:"version" short:"v"`
 	DryRun        bool   `help:"Show what would be uploaded without uploading" name:"dry-run"`
 	Validate      bool   `help:"Validate migration files before upload" default:"true" name:"validate"`
+	NoSourceInfo  bool   `help:"Do not upload push source info (push-info.json)" name:"no-source-info"`
 }
 
 // Execute runs the push command
@@ -90,12 +91,24 @@ func Execute(c *Cmd, s3EndpointURL, metricsAddr string) error {
 		slog.Info("All migration files validated successfully")
 	}
 
+	// Collect push info (unless disabled)
+	var pushInfo *shared.PushInfo
+	if !c.NoSourceInfo {
+		info := shared.CollectPushInfo()
+		pushInfo = &info
+	}
+
 	// Dry-run mode
 	if c.DryRun {
 		fmt.Println("Dry-run mode: would upload the following files:")
 		for _, fileName := range sqlFiles {
 			s3Key := path.Join(s3Prefix, c.Version, "migrations", fileName)
 			fmt.Printf("  %s -> s3://%s/%s\n", fileName, c.S3Bucket, s3Key)
+		}
+		if pushInfo != nil {
+			s3Key := path.Join(s3Prefix, c.Version, "push-info.json")
+			fmt.Printf("  push-info.json -> s3://%s/%s\n", c.S3Bucket, s3Key)
+			fmt.Printf("\nPush source: %s\n", pushInfo.Source.Type)
 		}
 		fmt.Printf("\nVersion: %s\n", c.Version)
 		return nil
@@ -105,6 +118,13 @@ func Execute(c *Cmd, s3EndpointURL, metricsAddr string) error {
 	slog.Info("Uploading migrations to S3", "bucket", c.S3Bucket, "prefix", s3Prefix, "version", c.Version)
 	if err := shared.UploadMigrations(ctx, s3Client, c.S3Bucket, s3Prefix, c.Version, c.MigrationsDir); err != nil {
 		return fmt.Errorf("failed to upload migrations: %w", err)
+	}
+
+	// Upload push info (unless disabled)
+	if pushInfo != nil {
+		if err := shared.UploadPushInfo(ctx, s3Client, c.S3Bucket, s3Prefix, c.Version, pushInfo); err != nil {
+			return fmt.Errorf("failed to upload push info: %w", err)
+		}
 	}
 
 	slog.Info("Successfully uploaded migrations", "version", c.Version, "count", len(sqlFiles))
