@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.0.9](https://github.com/tokuhirom/dbmate-deployer/compare/v0.0.8...v0.0.9) - 2026-01-23
+- feat: Add push source info to track migration origins by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/37
+- refactor: Replace LocalStack with gofakes3 for S3 testing by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/36
+
 ## [v0.0.8](https://github.com/tokuhirom/dbmate-deployer/compare/v0.0.7...v0.0.8) - 2026-01-22
 - docs: Clean up documentation for GA by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/30
 - fix: Resolve all linter errors by @tokuhirom in https://github.com/tokuhirom/dbmate-deployer/pull/32
